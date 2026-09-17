@@ -1,0 +1,54 @@
+module aimrt_examples {
+  module dds {
+    enum BenchmarkStatus {
+      BEGIN,
+      END,
+      WARM_UP
+    };
+
+    struct BenchmarkSignal {
+      BenchmarkStatus status;
+      unsigned long bench_plan_id;
+      string<32> mode;
+      unsigned long topic_number;
+      unsigned long parallel_number;
+      unsigned long send_num;
+      unsigned long message_size;
+      unsigned long send_frequency;
+    };
+
+    struct BenchmarkMessage {
+      unsigned long seq;
+      unsigned long long timestamp;
+      sequence<octet, 16777216> data;
+    };
+
+    @final
+    struct LoanedBenchmarkMessage1K {
+      unsigned long long timestamp;
+      unsigned long seq;
+      octet data[1024];
+    };
+
+    @final
+    struct LoanedBenchmarkMessage64K {
+      unsigned long long timestamp;
+      unsigned long seq;
+      octet data[65536];
+    };
+
+    @final
+    struct LoanedBenchmarkMessage1M {
+      unsigned long long timestamp;
+      unsigned long seq;
+      octet data[1048576];
+    };
+
+    @final
+    struct LoanedBenchmarkMessage16M {
+      unsigned long long timestamp;
+      unsigned long seq;
+      octet data[16777216];
+    };
+  };
+};

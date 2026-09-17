@@ -1,0 +1,46 @@
+# Copyright (c) 2023, AgiBot Inc.
+# All rights reserved.
+
+aimrt:
+  plugin:
+    plugins:
+      - name: ros2_plugin
+        path: ./libaimrt_ros2_plugin.so
+        options:
+          node_name: example_ros2_loaned_channel_node
+          executor_type: SingleThreaded
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+  executor:
+    executors:
+      - name: work_thread_pool
+        type: asio_thread
+        options:
+          thread_num: 1
+  channel:
+    backends:
+      - type: ros2
+    pub_topics_options:
+      - topic_name: "^loaned_topic$"
+        enable_backends: [ros2]
+    sub_topics_options:
+      - topic_name: "^loaned_topic$"
+        enable_backends: [ros2]
+  module:
+    pkgs:
+      - path: ./libros2_chn_pkg.so
+        enable_modules: [LoanedPublisherModule, LoanedSubscriberModule]
+    modules:
+      - name: LoanedPublisherModule
+        log_lvl: INFO
+      - name: LoanedSubscriberModule
+        log_lvl: INFO
+
+LoanedPublisherModule:
+  topic_name: loaned_topic
+  channel_frequency: 1.0
+
+LoanedSubscriberModule:
+  topic_name: loaned_topic

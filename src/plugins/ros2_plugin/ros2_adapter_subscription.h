@@ -20,24 +20,28 @@ class Ros2AdapterSubscription : public rclcpp::SubscriptionBase {
       const rosidl_message_type_support_t& type_support_handle,
       const std::string& topic_name,
       const rcl_subscription_options_t& subscription_options,
-      const runtime::core::channel::SubscribeWrapper& subscribe_wrapper,
-      const aimrt::runtime::core::channel::SubscribeTool& sub_tool,
+      const runtime::core::channel::TopicInfo& topic_info,
+      const aimrt::runtime::core::channel::SubscribeTool* sub_tool_ptr,
+      const aimrt::runtime::core::channel::LoanedSubscribeTool* loaned_sub_tool_ptr,
       bool is_serialized = false)
       : rclcpp::SubscriptionBase(node_base, type_support_handle, topic_name, subscription_options, is_serialized),
-        subscribe_wrapper_(subscribe_wrapper),
-        sub_tool_(sub_tool) {}
+        topic_info_(topic_info),
+        sub_tool_ptr_(sub_tool_ptr),
+        loaned_sub_tool_ptr_(loaned_sub_tool_ptr) {}
 #elif RCLCPP_VERSION_MAJOR == 28
   Ros2AdapterSubscription(
       rclcpp::node_interfaces::NodeBaseInterface* node_base,
       const rosidl_message_type_support_t& type_support_handle,
       const std::string& topic_name,
       const rcl_subscription_options_t& subscription_options,
-      const runtime::core::channel::SubscribeWrapper& subscribe_wrapper,
-      const aimrt::runtime::core::channel::SubscribeTool& sub_tool,
+      const runtime::core::channel::TopicInfo& topic_info,
+      const aimrt::runtime::core::channel::SubscribeTool* sub_tool_ptr,
+      const aimrt::runtime::core::channel::LoanedSubscribeTool* loaned_sub_tool_ptr,
       bool is_serialized = false)
       : rclcpp::SubscriptionBase(node_base, type_support_handle, topic_name, subscription_options, rclcpp::SubscriptionEventCallbacks{}, is_serialized, rclcpp::DeliveredMessageKind::ROS_MESSAGE),
-        subscribe_wrapper_(subscribe_wrapper),
-        sub_tool_(sub_tool) {}
+        topic_info_(topic_info),
+        sub_tool_ptr_(sub_tool_ptr),
+        loaned_sub_tool_ptr_(loaned_sub_tool_ptr) {}
 #endif
 
   ~Ros2AdapterSubscription() override = default;
@@ -85,10 +89,21 @@ class Ros2AdapterSubscription : public rclcpp::SubscriptionBase {
   void Start() { run_flag_.store(true); }
   void Shutdown() { run_flag_.store(false); }
 
+  void SetSubscribeTool(
+      const aimrt::runtime::core::channel::SubscribeTool* sub_tool_ptr) {
+    sub_tool_ptr_ = sub_tool_ptr;
+  }
+
+  void SetLoanedSubscribeTool(
+      const aimrt::runtime::core::channel::LoanedSubscribeTool* sub_tool_ptr) {
+    loaned_sub_tool_ptr_ = sub_tool_ptr;
+  }
+
  private:
   std::atomic_bool run_flag_ = false;
-  const runtime::core::channel::SubscribeWrapper& subscribe_wrapper_;
-  const aimrt::runtime::core::channel::SubscribeTool& sub_tool_;
+  const runtime::core::channel::TopicInfo& topic_info_;
+  const aimrt::runtime::core::channel::SubscribeTool* sub_tool_ptr_;
+  const aimrt::runtime::core::channel::LoanedSubscribeTool* loaned_sub_tool_ptr_;
 };
 
 }  // namespace aimrt::plugins::ros2_plugin

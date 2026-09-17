@@ -41,3 +41,10 @@ if(AIMRT_BUILD_WITH_ROS2)
     aimrt::examples::cpp::ros2_chn::ros2_chn_pub_pkg #
     aimrt::examples::cpp::ros2_chn::ros2_chn_sub_pkg)
 endif()
+
+if(AIMRT_BUILD_WITH_DDS)
+  add_dependencies(
+    ${CUR_SUPERIOR_NAMESPACE_UNDERLINE}_${CUR_DIR}_build_all #
+    aimrt::examples::cpp::dds_chn::dds_chn_pub_pkg #
+    aimrt::examples::cpp::dds_chn::dds_chn_sub_pkg)
+endif()

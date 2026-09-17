@@ -4,10 +4,13 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #include "aimrt_module_c_interface/util/function_base.h"
 #include "core/channel/channel_backend_base.h"
@@ -42,6 +45,28 @@ struct SubscribeProxyInfoWrapper {
 
   const aimrt_type_support_base_t* msg_type_support;
   aimrt_function_base_t* callback;
+};
+
+struct PrepareLoanedPublisherProxyInfoWrapper {
+  std::string_view pkg_path;
+  std::string_view module_name;
+  std::string_view topic_name;
+  aimrt_string_view_t msg_type;
+  aimrt_channel_loaned_publisher_base_t* output;
+};
+
+struct SubscribeLoanedProxyInfoWrapper {
+  std::string_view pkg_path;
+  std::string_view module_name;
+  std::string_view topic_name;
+  const aimrt_type_support_base_t* msg_type_support;
+  aimrt_function_base_t* callback;
+};
+
+struct LoanedMessageDiagnostics {
+  uint64_t outstanding_loans = 0;
+  uint64_t borrow_failures = 0;
+  uint64_t max_hold_duration_ns = 0;
 };
 
 class ChannelBackendManager {
@@ -91,6 +116,10 @@ class ChannelBackendManager {
   bool Subscribe(SubscribeProxyInfoWrapper&& wrapper);
   bool RegisterPublishType(RegisterPublishTypeProxyInfoWrapper&& wrapper);
   void Publish(PublishProxyInfoWrapper&& wrapper);
+  aimrt_channel_loan_status_t PrepareLoanedPublisher(
+      PrepareLoanedPublisherProxyInfoWrapper&& wrapper);
+  aimrt_channel_loan_status_t SubscribeLoaned(
+      SubscribeLoanedProxyInfoWrapper&& wrapper);
 
   // for framework
   bool Subscribe(SubscribeWrapper&& wrapper);
@@ -100,6 +129,7 @@ class ChannelBackendManager {
   using TopicBackendInfoMap = std::unordered_map<std::string_view, std::vector<std::string_view>>;
   TopicBackendInfoMap GetPubTopicBackendInfo() const;
   TopicBackendInfoMap GetSubTopicBackendInfo() const;
+  LoanedMessageDiagnostics GetLoanedMessageDiagnostics() const noexcept;
 
  private:
   std::vector<ChannelBackendBase*> GetBackendsByRules(
@@ -110,8 +140,59 @@ class ChannelBackendManager {
       std::string_view topic_name,
       const std::vector<std::pair<std::string, std::vector<std::string>>>& rules);
 
+  struct PreparedLoanedPublisherRoute {
+    ChannelBackendManager* manager_ptr;
+    BackendLoanedPublisher backend_route;
+    std::atomic<uint32_t>* sequence_ptr;
+    std::atomic<uint64_t> outstanding_loans = 0;
+    std::atomic<uint64_t> borrow_failures = 0;
+    std::atomic<uint64_t> max_hold_duration_ns = 0;
+  };
+
+  struct TrackedPublisherLoan {
+    PreparedLoanedPublisherRoute* route;
+    void* backend_impl;
+    aimrt_channel_loan_status_t (*backend_release)(void*, void*);
+    bool release_operation_held = false;
+  };
+
+  class LoanOperationGuard {
+   public:
+    LoanOperationGuard() = default;
+    explicit LoanOperationGuard(ChannelBackendManager* manager) : manager_(manager) {}
+    ~LoanOperationGuard();
+    LoanOperationGuard(const LoanOperationGuard&) = delete;
+    LoanOperationGuard& operator=(const LoanOperationGuard&) = delete;
+    LoanOperationGuard(LoanOperationGuard&& rhs) noexcept
+        : manager_(std::exchange(rhs.manager_, nullptr)) {}
+    explicit operator bool() const noexcept { return manager_ != nullptr; }
+    void Disarm() noexcept { manager_ = nullptr; }
+
+   private:
+    ChannelBackendManager* manager_ = nullptr;
+  };
+
+  LoanOperationGuard AcquireLoanOperation() noexcept;
+  void FinishLoanOperation() noexcept;
+
+  static aimrt_channel_loan_status_t BorrowFromPreparedRoute(
+      void* impl,
+      aimrt_channel_loaned_message_base_t* output) noexcept;
+  static aimrt_channel_loan_status_t PublishThroughPreparedRoute(
+      void* impl,
+      const aimrt_channel_context_base_t* ctx_ptr,
+      aimrt_channel_loaned_message_base_t* loaned_msg) noexcept;
+  static aimrt_channel_loan_status_t ReleaseThroughPreparedRoute(
+      void* impl, void* msg_ptr) noexcept;
+  static void FinishTrackedLoan(
+      void* impl, uint64_t borrowed_timestamp_ns) noexcept;
+
  private:
   std::atomic<State> state_ = State::kPreInit;
+  std::mutex loan_operation_mutex_;
+  std::condition_variable loan_operation_cv_;
+  bool loan_operations_open_ = false;
+  uint64_t loan_operations_in_flight_ = 0;
   uint64_t sub_topic_index_ = 0;
   uint64_t pub_topic_index_ = 0;
 
@@ -152,6 +233,15 @@ class ChannelBackendManager {
       aimrt::common::util::StringHash,
       std::equal_to<>>
       pub_topic_seq_map_;
+
+  std::vector<std::unique_ptr<LoanedSubscribeWrapper>> loaned_subscribe_wrapper_vec_;
+
+  mutable std::mutex prepared_loan_route_mutex_;
+  std::vector<std::unique_ptr<PreparedLoanedPublisherRoute>> prepared_loan_route_vec_;
+  std::unordered_map<const PublishTypeWrapper*, PreparedLoanedPublisherRoute*>
+      prepared_loan_route_map_;
+  std::atomic<uint64_t> subscriber_outstanding_loans_ = 0;
+  std::atomic<uint64_t> subscriber_max_hold_duration_ns_ = 0;
 };
 
 }  // namespace aimrt::runtime::core::channel

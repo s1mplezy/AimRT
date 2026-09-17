@@ -9,6 +9,29 @@
 
 namespace aimrt::runtime::core::channel {
 
+class LoanedSubscribeTool {
+ public:
+  LoanedSubscribeTool() = default;
+  ~LoanedSubscribeTool() = default;
+
+  LoanedSubscribeTool(const LoanedSubscribeTool&) = delete;
+  LoanedSubscribeTool& operator=(const LoanedSubscribeTool&) = delete;
+
+  void AddSubscribeWrapper(const LoanedSubscribeWrapper* sub_wrapper_ptr) {
+    sub_wrapper_vec_.emplace_back(sub_wrapper_ptr);
+  }
+
+  void DoSubscribeCallback(
+      aimrt::channel::ContextRef ctx_ref,
+      const void* loaned_msg_ptr) const {
+    for (const auto* sub_wrapper_ptr : sub_wrapper_vec_)
+      sub_wrapper_ptr->callback(ctx_ref, loaned_msg_ptr);
+  }
+
+ private:
+  std::vector<const LoanedSubscribeWrapper*> sub_wrapper_vec_;
+};
+
 class SubscribeTool {
  public:
   SubscribeTool() = default;
@@ -22,6 +45,11 @@ class SubscribeTool {
         sub_wrapper_ptr->require_cache_serialization_types.begin(),
         sub_wrapper_ptr->require_cache_serialization_types.end());
     sub_wrapper_vec_.emplace_back(sub_wrapper_ptr);
+  }
+
+  const runtime::core::channel::SubscribeWrapper* FirstSubscribeWrapper() const {
+    AIMRT_ASSERT(!sub_wrapper_vec_.empty(), "No ordinary subscriber is registered.");
+    return sub_wrapper_vec_.front();
   }
 
   void DoSubscribeCallback(

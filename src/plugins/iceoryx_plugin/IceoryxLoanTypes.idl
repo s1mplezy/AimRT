@@ -1,0 +1,10 @@
+module aimrt_iceoryx_test {
+  @final
+  struct NativePlainMessage {
+    long value;
+  };
+
+  struct NativeNonPlainMessage {
+    string<64> value;
+  };
+};

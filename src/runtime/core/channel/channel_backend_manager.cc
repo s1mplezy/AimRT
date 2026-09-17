@@ -3,6 +3,11 @@
 
 #include "core/channel/channel_backend_manager.h"
 
+#include <array>
+#include <charconv>
+#include <chrono>
+#include <exception>
+#include <new>
 #include <regex>
 #include <string>
 #include <vector>
@@ -13,6 +18,66 @@
 #include "util/time_util.h"
 
 namespace aimrt::runtime::core::channel {
+
+namespace {
+
+void UpdateMaximum(std::atomic<uint64_t>& maximum, uint64_t value) noexcept {
+  auto current = maximum.load(std::memory_order_relaxed);
+  while (current < value &&
+         !maximum.compare_exchange_weak(
+             current, value, std::memory_order_relaxed)) {
+  }
+}
+
+uint64_t GetSteadyTimestampNs() noexcept {
+  return static_cast<uint64_t>(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(
+          std::chrono::steady_clock::now().time_since_epoch())
+          .count());
+}
+
+void SetUint64Meta(
+    aimrt::channel::ContextRef ctx_ref,
+    std::string_view key,
+    uint64_t value) {
+  std::array<char, 32> buffer{};
+  const auto [end, error] =
+      std::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
+  if (error == std::errc())
+    ctx_ref.SetMetaValue(
+        key,
+        std::string_view(
+            buffer.data(), static_cast<size_t>(end - buffer.data())));
+}
+
+class LoanTrackingScope {
+ public:
+  LoanTrackingScope(
+      std::atomic<uint64_t>& outstanding,
+      std::atomic<uint64_t>& max_hold_duration) noexcept
+      : outstanding_(outstanding),
+        max_hold_duration_(max_hold_duration),
+        begin_timestamp_ns_(GetSteadyTimestampNs()) {
+    outstanding_.fetch_add(1, std::memory_order_relaxed);
+  }
+
+  ~LoanTrackingScope() {
+    outstanding_.fetch_sub(1, std::memory_order_relaxed);
+    const auto end_timestamp_ns = GetSteadyTimestampNs();
+    UpdateMaximum(
+        max_hold_duration_,
+        end_timestamp_ns >= begin_timestamp_ns_
+            ? end_timestamp_ns - begin_timestamp_ns_
+            : 0);
+  }
+
+ private:
+  std::atomic<uint64_t>& outstanding_;
+  std::atomic<uint64_t>& max_hold_duration_;
+  uint64_t begin_timestamp_ns_;
+};
+
+}  // namespace
 
 void ChannelBackendManager::Initialize() {
   AIMRT_CHECK_ERROR_THROW(
@@ -29,16 +94,54 @@ void ChannelBackendManager::Start() {
     AIMRT_TRACE("Start channel backend '{}'.", backend->Name());
     backend->Start();
   }
+
+  std::lock_guard guard(loan_operation_mutex_);
+  loan_operations_open_ = true;
 }
 
 void ChannelBackendManager::Shutdown() {
-  if (std::atomic_exchange(&state_, State::kShutdown) == State::kShutdown)
-    return;
+  {
+    std::unique_lock lock(loan_operation_mutex_);
+    if (state_.exchange(State::kShutdown) == State::kShutdown) return;
+    loan_operations_open_ = false;
+    loan_operation_cv_.wait(
+        lock, [this] { return loan_operations_in_flight_ == 0; });
+  }
+
+  const auto loan_diagnostics = GetLoanedMessageDiagnostics();
+  if (loan_diagnostics.outstanding_loans != 0) {
+    AIMRT_FATAL(
+        "Channel backend shutdown refused: {} loaned message(s) have not been "
+        "returned or published. Release all loans before runtime shutdown.",
+        loan_diagnostics.outstanding_loans);
+    std::terminate();
+  }
 
   for (auto& backend : channel_backend_index_vec_) {
     AIMRT_TRACE("Shutdown channel backend '{}'.", backend->Name());
     backend->Shutdown();
   }
+
+  // Backend shutdown releases all references to loaned subscription wrappers.
+  // Destroy their module-owned callback objects before module libraries unload.
+  loaned_subscribe_wrapper_vec_.clear();
+}
+
+ChannelBackendManager::LoanOperationGuard::~LoanOperationGuard() {
+  if (manager_ != nullptr) manager_->FinishLoanOperation();
+}
+
+ChannelBackendManager::LoanOperationGuard
+ChannelBackendManager::AcquireLoanOperation() noexcept {
+  std::lock_guard guard(loan_operation_mutex_);
+  if (!loan_operations_open_ || state_.load() != State::kStart) return {};
+  ++loan_operations_in_flight_;
+  return LoanOperationGuard(this);
+}
+
+void ChannelBackendManager::FinishLoanOperation() noexcept {
+  std::lock_guard guard(loan_operation_mutex_);
+  if (--loan_operations_in_flight_ == 0) loan_operation_cv_.notify_all();
 }
 
 void ChannelBackendManager::SetChannelRegistry(ChannelRegistry* channel_registry_ptr) {
@@ -322,6 +425,270 @@ void ChannelBackendManager::Publish(PublishProxyInfoWrapper&& wrapper) {
       *publish_msg_wrapper_ptr);
 }
 
+aimrt_channel_loan_status_t ChannelBackendManager::PrepareLoanedPublisher(
+    PrepareLoanedPublisherProxyInfoWrapper&& wrapper) {
+  if (wrapper.output == nullptr) [[unlikely]]
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+  *wrapper.output = {};
+
+  if (state_.load() != State::kStart) [[unlikely]]
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
+
+  const auto msg_type = util::ToStdStringView(wrapper.msg_type);
+  const auto* publish_type_ptr = channel_registry_ptr_->GetPublishTypeWrapperPtr(
+      msg_type, wrapper.topic_name, wrapper.pkg_path, wrapper.module_name);
+  if (publish_type_ptr == nullptr)
+    return AIMRT_CHANNEL_LOAN_STATUS_UNREGISTERED_MESSAGE_TYPE;
+
+  const auto backend_itr = pub_topics_backend_index_map_.find(wrapper.topic_name);
+  if (backend_itr == pub_topics_backend_index_map_.end() ||
+      backend_itr->second.size() != 1)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_BACKEND_COUNT;
+  if (msg_type.starts_with("pb:"))
+    return AIMRT_CHANNEL_LOAN_STATUS_UNSUPPORTED_MESSAGE_TYPE;
+  if (publish_filter_manager_ptr_->HasFilters(wrapper.topic_name))
+    return AIMRT_CHANNEL_LOAN_STATUS_INCOMPATIBLE_BACKEND_CONFIG;
+
+  std::lock_guard guard(prepared_loan_route_mutex_);
+  auto prepared_itr = prepared_loan_route_map_.find(publish_type_ptr);
+  if (prepared_itr == prepared_loan_route_map_.end()) {
+    BackendLoanedPublisher backend_route;
+    const auto status = backend_itr->second.front()->PrepareLoanedPublisher(
+        *publish_type_ptr, backend_route);
+    if (status != AIMRT_CHANNEL_LOAN_STATUS_OK)
+      return status;
+    if (backend_route.impl == nullptr || backend_route.borrow == nullptr ||
+        backend_route.publish == nullptr)
+      return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+
+    auto route_ptr = std::make_unique<PreparedLoanedPublisherRoute>();
+    route_ptr->manager_ptr = this;
+    route_ptr->backend_route = backend_route;
+    const auto sequence_itr = pub_topic_seq_map_.find(wrapper.topic_name);
+    route_ptr->sequence_ptr = sequence_itr == pub_topic_seq_map_.end()
+                                  ? nullptr
+                                  : &sequence_itr->second;
+    auto* route = route_ptr.get();
+    prepared_loan_route_vec_.emplace_back(std::move(route_ptr));
+    prepared_itr = prepared_loan_route_map_.emplace(publish_type_ptr, route).first;
+  }
+
+  wrapper.output->impl = prepared_itr->second;
+  wrapper.output->borrow_loaned_message = &BorrowFromPreparedRoute;
+  wrapper.output->publish_loaned_message = &PublishThroughPreparedRoute;
+  return AIMRT_CHANNEL_LOAN_STATUS_OK;
+}
+
+aimrt_channel_loan_status_t ChannelBackendManager::BorrowFromPreparedRoute(
+    void* impl, aimrt_channel_loaned_message_base_t* output) noexcept {
+  if (impl == nullptr || output == nullptr)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+  *output = {};
+  auto& route = *static_cast<PreparedLoanedPublisherRoute*>(impl);
+  auto operation = route.manager_ptr->AcquireLoanOperation();
+  if (!operation) return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
+
+  route.outstanding_loans.fetch_add(1, std::memory_order_relaxed);
+  auto tracked_loan = std::unique_ptr<TrackedPublisherLoan>(
+      new (std::nothrow) TrackedPublisherLoan{.route = &route});
+  if (!tracked_loan) {
+    route.outstanding_loans.fetch_sub(1, std::memory_order_relaxed);
+    route.borrow_failures.fetch_add(1, std::memory_order_relaxed);
+    return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+  }
+
+  const auto status = route.backend_route.borrow(
+      route.backend_route.impl, *output);
+  if (status != AIMRT_CHANNEL_LOAN_STATUS_OK) {
+    route.borrow_failures.fetch_add(1, std::memory_order_relaxed);
+    route.outstanding_loans.fetch_sub(1, std::memory_order_relaxed);
+    if (output->release != nullptr) {
+      const auto cleanup_status = output->release(output->impl, output->msg_ptr);
+      if (cleanup_status != AIMRT_CHANNEL_LOAN_STATUS_OK) std::terminate();
+    }
+    *output = {};
+    return status;
+  }
+  if (output->msg_ptr == nullptr || output->impl == nullptr ||
+      output->release == nullptr) {
+    route.borrow_failures.fetch_add(1, std::memory_order_relaxed);
+    route.outstanding_loans.fetch_sub(1, std::memory_order_relaxed);
+    if (output->release != nullptr) {
+      const auto cleanup_status = output->release(output->impl, output->msg_ptr);
+      if (cleanup_status != AIMRT_CHANNEL_LOAN_STATUS_OK) std::terminate();
+    }
+    *output = {};
+    return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+  }
+
+  tracked_loan->backend_impl = output->impl;
+  tracked_loan->backend_release = output->release;
+  output->impl = tracked_loan.get();
+  output->release = &ReleaseThroughPreparedRoute;
+  output->owner = &route;
+  output->tracking_impl = tracked_loan.get();
+  output->track_release = &FinishTrackedLoan;
+  output->borrowed_timestamp_ns = GetSteadyTimestampNs();
+  tracked_loan.release();
+  return AIMRT_CHANNEL_LOAN_STATUS_OK;
+}
+
+aimrt_channel_loan_status_t ChannelBackendManager::PublishThroughPreparedRoute(
+    void* impl,
+    const aimrt_channel_context_base_t* ctx_ptr,
+    aimrt_channel_loaned_message_base_t* loaned_msg) noexcept {
+  if (impl == nullptr || loaned_msg == nullptr || loaned_msg->msg_ptr == nullptr ||
+      loaned_msg->impl == nullptr || loaned_msg->release == nullptr)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+
+  auto& route = *static_cast<PreparedLoanedPublisherRoute*>(impl);
+  if (loaned_msg->owner != &route ||
+      loaned_msg->release != &ReleaseThroughPreparedRoute ||
+      loaned_msg->tracking_impl != loaned_msg->impl)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+  auto& tracked_loan = *static_cast<TrackedPublisherLoan*>(loaned_msg->impl);
+  if (tracked_loan.route != &route)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+
+  auto operation = route.manager_ptr->AcquireLoanOperation();
+  if (!operation) return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
+
+  aimrt::channel::ContextRef ctx_ref(ctx_ptr);
+  if (!ctx_ref ||
+      ctx_ref.GetType() != AIMRT_CHANNEL_PUBLISHER_CONTEXT ||
+      ctx_ref.CheckUsed())
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+
+  ctx_ref.SetUsed();
+  if (route.sequence_ptr != nullptr) {
+    const uint32_t sequence = ++(*route.sequence_ptr);
+    SetUint64Meta(ctx_ref, AIMRT_CHANNEL_CONTEXT_KEY_PUB_SEQ, sequence);
+  }
+  SetUint64Meta(
+      ctx_ref,
+      AIMRT_CHANNEL_CONTEXT_KEY_PUB_TIMESTAMP,
+      aimrt::common::util::GetCurTimestampNs());
+
+  auto backend_loaned_msg = *loaned_msg;
+  backend_loaned_msg.impl = tracked_loan.backend_impl;
+  backend_loaned_msg.release = tracked_loan.backend_release;
+  const auto status = route.backend_route.publish(
+      route.backend_route.impl, ctx_ref, backend_loaned_msg);
+
+  const bool terminal = backend_loaned_msg.msg_ptr == nullptr &&
+                        backend_loaned_msg.impl == nullptr &&
+                        backend_loaned_msg.release == nullptr;
+  const bool retained = backend_loaned_msg.msg_ptr == loaned_msg->msg_ptr &&
+                        backend_loaned_msg.impl == tracked_loan.backend_impl &&
+                        backend_loaned_msg.release == tracked_loan.backend_release;
+  if (terminal) {
+    const auto tracking_impl = loaned_msg->tracking_impl;
+    const auto track_release = loaned_msg->track_release;
+    const auto borrowed_timestamp_ns = loaned_msg->borrowed_timestamp_ns;
+    if (track_release != nullptr)
+      track_release(tracking_impl, borrowed_timestamp_ns);
+    *loaned_msg = {};
+  } else if (!retained || status == AIMRT_CHANNEL_LOAN_STATUS_OK) {
+    AIMRT_HANDLE_LOG(
+        route.manager_ptr->GetLogger(), aimrt::common::util::kLogLevelError,
+        "Loaned channel backend returned an invalid ownership disposition");
+    return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+  }
+  return status;
+}
+
+aimrt_channel_loan_status_t ChannelBackendManager::ReleaseThroughPreparedRoute(
+    void* impl, void* msg_ptr) noexcept {
+  if (impl == nullptr || msg_ptr == nullptr)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+  auto& tracked_loan = *static_cast<TrackedPublisherLoan*>(impl);
+  if (tracked_loan.route == nullptr || tracked_loan.backend_impl == nullptr ||
+      tracked_loan.backend_release == nullptr)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+  auto operation = tracked_loan.route->manager_ptr->AcquireLoanOperation();
+  if (!operation) return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
+  const auto status =
+      tracked_loan.backend_release(tracked_loan.backend_impl, msg_ptr);
+  if (status == AIMRT_CHANNEL_LOAN_STATUS_OK) {
+    tracked_loan.release_operation_held = true;
+    operation.Disarm();
+  }
+  return status;
+}
+
+void ChannelBackendManager::FinishTrackedLoan(
+    void* impl, uint64_t borrowed_timestamp_ns) noexcept {
+  if (impl == nullptr) return;
+  std::unique_ptr<TrackedPublisherLoan> tracked_loan(
+      static_cast<TrackedPublisherLoan*>(impl));
+  auto& route = *tracked_loan->route;
+  auto* manager = route.manager_ptr;
+  const bool release_operation_held = tracked_loan->release_operation_held;
+  route.outstanding_loans.fetch_sub(1, std::memory_order_relaxed);
+  const auto now = GetSteadyTimestampNs();
+  const auto duration = now >= borrowed_timestamp_ns
+                            ? now - borrowed_timestamp_ns
+                            : 0;
+  UpdateMaximum(route.max_hold_duration_ns, duration);
+  if (release_operation_held) manager->FinishLoanOperation();
+}
+
+aimrt_channel_loan_status_t ChannelBackendManager::SubscribeLoaned(
+    SubscribeLoanedProxyInfoWrapper&& wrapper) {
+  if (state_.load() != State::kInit) [[unlikely]]
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
+  if (wrapper.msg_type_support == nullptr || wrapper.callback == nullptr)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+
+  auto backend_itr = sub_topics_backend_index_map_.find(wrapper.topic_name);
+  if (backend_itr == sub_topics_backend_index_map_.end()) {
+    auto backend_ptr_vec = GetBackendsByRules(
+        wrapper.topic_name, sub_topics_backends_rules_);
+    auto emplace_ret = sub_topics_backend_index_map_.emplace(
+        wrapper.topic_name, std::move(backend_ptr_vec));
+    backend_itr = emplace_ret.first;
+  }
+  if (backend_itr->second.size() != 1)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_BACKEND_COUNT;
+
+  auto msg_type_support_ref = aimrt::util::TypeSupportRef(wrapper.msg_type_support);
+  auto msg_type = msg_type_support_ref.TypeName();
+  if (msg_type.starts_with("pb:"))
+    return AIMRT_CHANNEL_LOAN_STATUS_UNSUPPORTED_MESSAGE_TYPE;
+
+  auto filter_names = GetFilterRules(wrapper.topic_name, subscribe_filters_rules_);
+  if (!filter_names.empty())
+    return AIMRT_CHANNEL_LOAN_STATUS_INCOMPATIBLE_BACKEND_CONFIG;
+
+  auto callback_ptr =
+      std::make_shared<aimrt::channel::SubscriberLoanedCallback>(wrapper.callback);
+  auto loaned_wrapper_ptr = std::make_unique<LoanedSubscribeWrapper>();
+  loaned_wrapper_ptr->info = TopicInfo{
+      .msg_type = std::string(msg_type),
+      .topic_name = std::string(wrapper.topic_name),
+      .pkg_path = std::string(wrapper.pkg_path),
+      .module_name = std::string(wrapper.module_name),
+      .index = ++sub_topic_index_,
+      .msg_type_support_ref = msg_type_support_ref};
+  loaned_wrapper_ptr->callback =
+      [this, callback_ptr](aimrt::channel::ContextRef ctx_ref, const void* msg_ptr) {
+        LoanTrackingScope tracking_scope(
+            subscriber_outstanding_loans_, subscriber_max_hold_duration_ns_);
+        try {
+          (*callback_ptr)(ctx_ref.NativeHandle(), msg_ptr);
+        } catch (const std::exception& e) {
+          AIMRT_ERROR("Loaned subscriber callback failed: {}", e.what());
+        } catch (...) {
+          AIMRT_ERROR("Loaned subscriber callback failed with an unknown exception.");
+        }
+      };
+
+  auto status = backend_itr->second.front()->SubscribeLoaned(*loaned_wrapper_ptr);
+  if (status == AIMRT_CHANNEL_LOAN_STATUS_OK)
+    loaned_subscribe_wrapper_vec_.emplace_back(std::move(loaned_wrapper_ptr));
+  return status;
+}
+
 bool ChannelBackendManager::Subscribe(SubscribeWrapper&& wrapper) {
   if (state_.load() != State::kInit) [[unlikely]] {
     AIMRT_ERROR("Msg can only be subscribed when state is 'Init'.");
@@ -499,6 +866,27 @@ ChannelBackendManager::TopicBackendInfoMap ChannelBackendManager::GetSubTopicBac
     result.emplace(itr.first, std::move(backends_name));
   }
 
+  return result;
+}
+
+LoanedMessageDiagnostics
+ChannelBackendManager::GetLoanedMessageDiagnostics() const noexcept {
+  LoanedMessageDiagnostics result{
+      .outstanding_loans =
+          subscriber_outstanding_loans_.load(std::memory_order_relaxed),
+      .borrow_failures = 0,
+      .max_hold_duration_ns =
+          subscriber_max_hold_duration_ns_.load(std::memory_order_relaxed)};
+  std::lock_guard guard(prepared_loan_route_mutex_);
+  for (const auto& route_ptr : prepared_loan_route_vec_) {
+    result.outstanding_loans +=
+        route_ptr->outstanding_loans.load(std::memory_order_relaxed);
+    result.borrow_failures +=
+        route_ptr->borrow_failures.load(std::memory_order_relaxed);
+    result.max_hold_duration_ns = std::max(
+        result.max_hold_duration_ns,
+        route_ptr->max_hold_duration_ns.load(std::memory_order_relaxed));
+  }
   return result;
 }
 

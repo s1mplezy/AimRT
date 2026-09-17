@@ -95,6 +95,7 @@ AimRT 提供了大量官方插件，您可以通过以下文档了解各个插�
 plugins/net_plugin.md
 plugins/mqtt_plugin.md
 plugins/ros2_plugin.md
+plugins/dds_plugin.md
 plugins/parameter_plugin.md
 plugins/time_manipulator_plugin.md
 plugins/log_control_plugin.md

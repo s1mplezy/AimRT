@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+"""Installed launcher for AimRT DDS RPC generation."""
+
+from pathlib import Path
+import sys
+
+module_root = Path(__file__).resolve().parent.parent / "lib" / "aimrt" / "python"
+sys.path.insert(0, str(module_root))
+
+from aimrt_dds_rpc_gen.cli import main
+
+raise SystemExit(main())

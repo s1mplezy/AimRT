@@ -98,6 +98,34 @@ void IoxPublisher::PublishShm(IoxLoanedShm& loaned_shm) {
   loaned_shm.ptr_ = nullptr;
 }
 
+IoxPublisher::RawLoan IoxPublisher::LoanRaw(
+    size_t min_size, size_t alignment) noexcept {
+  if (min_size == 0 || alignment == 0 ||
+      alignment > std::numeric_limits<uint32_t>::max())
+    return {};
+
+  std::lock_guard<std::mutex> lock(mtx_);
+  if (shm_size_ == 0) shm_size_ = 1;
+  while (min_size > shm_size_) shm_size_ *= 2;
+
+  auto loan_result = publisher_.loan(
+      shm_size_, static_cast<uint32_t>(alignment));
+  if (loan_result.has_error()) return {};
+  return RawLoan{.ptr = loan_result.value(), .size = shm_size_};
+}
+
+void IoxPublisher::ReleaseRaw(void* ptr) noexcept {
+  if (ptr == nullptr) return;
+  std::lock_guard<std::mutex> lock(mtx_);
+  publisher_.release(ptr);
+}
+
+void IoxPublisher::PublishRaw(void* ptr) noexcept {
+  if (ptr == nullptr) return;
+  std::lock_guard<std::mutex> lock(mtx_);
+  publisher_.publish(ptr);
+}
+
 void IceoryxManager::Initialize(uint64_t shm_init_size, std::string_view runtime_id) {
   shm_init_size_ = shm_init_size;
   iox::runtime::PoshRuntime::initRuntime(iox::RuntimeName_t(iox::TruncateToCapacity, runtime_id.data()));

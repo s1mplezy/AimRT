@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <cstdint>
+#include <limits>
 #include <unordered_map>
 #include "iceoryx_posh/popo/listener.hpp"
 #include "iceoryx_posh/popo/untyped_publisher.hpp"
@@ -37,6 +39,13 @@ class IoxLoanedShm {
 
 class IoxPublisher {
  public:
+  struct RawLoan {
+    void* ptr = nullptr;
+    size_t size = 0;
+
+    explicit operator bool() const noexcept { return ptr != nullptr; }
+  };
+
   IoxPublisher(std::string_view url, size_t shm_size);
   ~IoxPublisher() = default;
 
@@ -46,6 +55,10 @@ class IoxPublisher {
   IoxLoanedShm LoanShm(size_t min_size);
   void UpdateLoanShm(IoxLoanedShm& loaned_shm, size_t min_size);
   void PublishShm(IoxLoanedShm& loaned_shm);
+
+  RawLoan LoanRaw(size_t min_size, size_t alignment) noexcept;
+  void ReleaseRaw(void* ptr) noexcept;
+  void PublishRaw(void* ptr) noexcept;
 
  private:
   std::mutex mtx_;

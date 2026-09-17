@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""Installed/source-tree launcher for AimRT DDS RPC generation."""
+
+from pathlib import Path
+import sys
+
+installed_module_root = Path(__file__).resolve().parent.parent / "lib" / "aimrt" / "python"
+source_module_root = Path(r"@CMAKE_CURRENT_SOURCE_DIR@")
+if installed_module_root.is_dir():
+    sys.path.insert(0, str(installed_module_root))
+else:
+    sys.path.insert(0, str(source_module_root))
+
+from aimrt_dds_rpc_gen.cli import main
+
+raise SystemExit(main())

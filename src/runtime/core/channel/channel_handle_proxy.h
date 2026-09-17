@@ -63,6 +63,18 @@ class PublisherProxy {
             .msg_ptr = msg_ptr});
   }
 
+  aimrt_channel_loan_status_t PrepareLoanedPublisher(
+      aimrt_string_view_t msg_type,
+      aimrt_channel_loaned_publisher_base_t* output) {
+    return channel_backend_manager_.PrepareLoanedPublisher(
+        PrepareLoanedPublisherProxyInfoWrapper{
+            .pkg_path = pkg_path_,
+            .module_name = module_name_,
+            .topic_name = topic_name_,
+            .msg_type = msg_type,
+            .output = output});
+  }
+
   void MergeSubscribeContextToPublishContext(
       const aimrt_channel_context_base_t* subscribe_ctx_ptr, const aimrt_channel_context_base_t* publish_ctx_ptr) {
     aimrt::channel::ContextRef subscribe_ctx_ref(subscribe_ctx_ptr);
@@ -99,7 +111,8 @@ class PublisherProxy {
                                                          const aimrt_channel_context_base_t* publish_ctx_ptr) {  //
           static_cast<PublisherProxy*>(impl)->MergeSubscribeContextToPublishContext(subscribe_ctx_ptr, publish_ctx_ptr);
         },
-        .impl = impl};
+        .impl = impl,
+        .prepare_loaned_publisher = [](void* impl, aimrt_string_view_t msg_type, aimrt_channel_loaned_publisher_base_t* output) { return static_cast<PublisherProxy*>(impl)->PrepareLoanedPublisher(msg_type, output); }};
   }
 
  private:
@@ -146,6 +159,18 @@ class SubscriberProxy {
             .callback = callback});
   }
 
+  aimrt_channel_loan_status_t SubscribeLoaned(
+      const aimrt_type_support_base_t* msg_type_support,
+      aimrt_function_base_t* callback) {
+    return channel_backend_manager_.SubscribeLoaned(
+        SubscribeLoanedProxyInfoWrapper{
+            .pkg_path = pkg_path_,
+            .module_name = module_name_,
+            .topic_name = topic_name_,
+            .msg_type_support = msg_type_support,
+            .callback = callback});
+  }
+
   static aimrt_channel_subscriber_base_t GenBase(void* impl) {
     return aimrt_channel_subscriber_base_t{
         .subscribe = [](void* impl,
@@ -156,7 +181,11 @@ class SubscriberProxy {
         .get_topic = [](void* impl) -> aimrt_string_view_t {
           return aimrt::util::ToAimRTStringView(static_cast<SubscriberProxy*>(impl)->topic_name_);
         },
-        .impl = impl};
+        .impl = impl,
+        .subscribe_loaned = [](void* impl,
+                               const aimrt_type_support_base_t* msg_type_support,
+                               aimrt_function_base_t* callback) { return static_cast<SubscriberProxy*>(impl)->SubscribeLoaned(
+                                                                      msg_type_support, callback); }};
   }
 
  private:

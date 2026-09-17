@@ -14,11 +14,18 @@
 namespace aimrt::runtime::core::channel {
 
 using SubscriberCallback = std::function<void(MsgWrapper&, std::function<void()>&&)>;
+using LoanedSubscriberCallback =
+    std::function<void(aimrt::channel::ContextRef, const void*)>;
 
 struct SubscribeWrapper {
   TopicInfo info;
   std::unordered_set<std::string> require_cache_serialization_types;
   SubscriberCallback callback;
+};
+
+struct LoanedSubscribeWrapper {
+  TopicInfo info;
+  LoanedSubscriberCallback callback;
 };
 
 struct PublishTypeWrapper {

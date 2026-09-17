@@ -150,6 +150,7 @@ void Ros2ChannelBackend::Shutdown() {
     return;
 
   for (auto& itr : ros2_publish_type_wrapper_map_) {
+    std::lock_guard guard(itr.second.loan_operation_mutex);
     rcl_publisher_t& publisher = *(itr.second.publisher_ptr);
     rcl_ret_t ret = rcl_publisher_fini(
         &publisher,
@@ -213,9 +214,15 @@ bool Ros2ChannelBackend::RegisterPublishType(
       auto unique_ptr = std::make_unique<rcl_publisher_t>(rcl_get_zero_initialized_publisher());
 
       rcl_publisher_t* publisher_ptr = unique_ptr.get();
-      ros2_publish_type_wrapper_map_.emplace(key, RosPubWrapper{
-                                                      .publisher_ptr = std::move(unique_ptr),
-                                                      .use_serialized = use_serialized});
+      auto [publisher_itr, inserted] =
+          ros2_publish_type_wrapper_map_.try_emplace(key);
+      AIMRT_ASSERT(inserted, "ROS2 publisher wrapper was inserted concurrently.");
+      auto& publisher_wrapper = publisher_itr->second;
+      publisher_wrapper.publisher_ptr = std::move(unique_ptr);
+      publisher_wrapper.type_support_ptr =
+          static_cast<const rosidl_message_type_support_t*>(
+              info.msg_type_support_ref.CustomTypeSupportPtr());
+      publisher_wrapper.use_serialized = use_serialized;
 
       std::string ros2_topic_name = rclcpp::extend_name_with_sub_namespace(
           info.topic_name,
@@ -302,6 +309,14 @@ bool Ros2ChannelBackend::Subscribe(
 
       auto find_itr = ros2_subscribe_wrapper_map_.find(key);
       if (find_itr != ros2_subscribe_wrapper_map_.end()) {
+        if (find_itr->second.use_serialized != use_serialized) return false;
+        if (find_itr->second.sub_tool_ptr == nullptr) {
+          find_itr->second.sub_tool_ptr =
+              std::make_unique<aimrt::runtime::core::channel::SubscribeTool>();
+          static_cast<Ros2AdapterSubscription*>(
+              find_itr->second.ros_sub_handle_ptr.get())
+              ->SetSubscribeTool(find_itr->second.sub_tool_ptr.get());
+        }
         find_itr->second.sub_tool_ptr->AddSubscribeWrapper(&subscribe_wrapper);
         return true;
       }
@@ -335,8 +350,9 @@ bool Ros2ChannelBackend::Subscribe(
                     topic_name,
                     // todo: ros2 bug, remove template parameters after the new version is fixed
                     options.to_rcl_subscription_options<void>(qos),
-                    subscribe_wrapper,
-                    *sub_tool_ptr,
+                    subscribe_wrapper.info,
+                    sub_tool_ptr,
+                    nullptr,
                     use_serialized);
             return std::dynamic_pointer_cast<rclcpp::SubscriptionBase>(subscriber);
           }};
@@ -357,8 +373,9 @@ bool Ros2ChannelBackend::Subscribe(
                     topic_name,
                     // todo: ros2 bug, remove template parameters after the new version is fixed
                     options.to_rcl_subscription_options(qos),
-                    subscribe_wrapper,
-                    *sub_tool_ptr,
+                    subscribe_wrapper.info,
+                    sub_tool_ptr,
+                    nullptr,
                     use_serialized);
             return std::dynamic_pointer_cast<rclcpp::SubscriptionBase>(subscriber);
           }};
@@ -371,7 +388,9 @@ bool Ros2ChannelBackend::Subscribe(
           key,
           RosSubWrapper{
               .sub_tool_ptr = std::move(sub_tool_unique_ptr),
-              .ros_sub_handle_ptr = std::move(subscriber)});
+              .loaned_sub_tool_ptr = nullptr,
+              .ros_sub_handle_ptr = std::move(subscriber),
+              .use_serialized = use_serialized});
 
       AIMRT_INFO("subscribe topic '{}' success.", info.topic_name);
 
@@ -558,6 +577,212 @@ void Ros2ChannelBackend::Publish(runtime::core::channel::MsgWrapper& msg_wrapper
     ros2_publisher_ptr->publish(wrapper_msg);
   } catch (const std::exception& e) {
     AIMRT_ERROR("{}", e.what());
+  }
+}
+
+aimrt_channel_loan_status_t Ros2ChannelBackend::PrepareLoanedPublisher(
+    const runtime::core::channel::PublishTypeWrapper& publish_type_wrapper,
+    runtime::core::channel::BackendLoanedPublisher& loaned_publisher) noexcept {
+  loaned_publisher = {};
+  try {
+    if (state_.load() != State::kStart)
+      return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
+
+    const auto& info = publish_type_wrapper.info;
+    if (!CheckRosMsg(info.msg_type))
+      return AIMRT_CHANNEL_LOAN_STATUS_UNSUPPORTED_MESSAGE_TYPE;
+
+    Key key{.topic_name = info.topic_name, .msg_type = info.msg_type};
+    auto find_itr = ros2_publish_type_wrapper_map_.find(key);
+    if (find_itr == ros2_publish_type_wrapper_map_.end())
+      return AIMRT_CHANNEL_LOAN_STATUS_UNREGISTERED_MESSAGE_TYPE;
+    if (find_itr->second.use_serialized)
+      return AIMRT_CHANNEL_LOAN_STATUS_INCOMPATIBLE_BACKEND_CONFIG;
+
+    auto& publisher = *find_itr->second.publisher_ptr;
+    if (!rcl_publisher_can_loan_messages(&publisher))
+      return AIMRT_CHANNEL_LOAN_STATUS_RUNTIME_CANNOT_LOAN;
+
+    loaned_publisher.impl = &find_itr->second;
+    loaned_publisher.borrow = [](
+                                  void* impl,
+                                  aimrt_channel_loaned_message_base_t& loaned_msg) noexcept {
+      loaned_msg = {};
+      auto& wrapper = *static_cast<RosPubWrapper*>(impl);
+      std::lock_guard guard(wrapper.loan_operation_mutex);
+      void* msg_ptr = nullptr;
+      const auto ret = rcl_borrow_loaned_message(
+          wrapper.publisher_ptr.get(), wrapper.type_support_ptr, &msg_ptr);
+      if (ret != RCL_RET_OK) {
+        if (rcl_error_is_set()) rcl_reset_error();
+        if (ret == RCL_RET_BAD_ALLOC)
+          return AIMRT_CHANNEL_LOAN_STATUS_LOAN_UNAVAILABLE;
+        if (ret == RCL_RET_UNSUPPORTED)
+          return AIMRT_CHANNEL_LOAN_STATUS_RUNTIME_CANNOT_LOAN;
+        return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+      }
+      loaned_msg = aimrt_channel_loaned_message_base_t{
+          .msg_ptr = msg_ptr,
+          .impl = &wrapper,
+          .release = [](void* impl, void* msg_ptr) noexcept {
+            if (impl == nullptr || msg_ptr == nullptr)
+              return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+            auto& wrapper = *static_cast<RosPubWrapper*>(impl);
+            std::lock_guard guard(wrapper.loan_operation_mutex);
+            const auto ret = rcl_return_loaned_message_from_publisher(
+                wrapper.publisher_ptr.get(), msg_ptr);
+            if (ret != RCL_RET_OK && rcl_error_is_set()) rcl_reset_error();
+            return ret == RCL_RET_OK ? AIMRT_CHANNEL_LOAN_STATUS_OK
+                                     : AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+          }};
+      return AIMRT_CHANNEL_LOAN_STATUS_OK;
+    };
+    loaned_publisher.publish = [](
+                                   void* impl,
+                                   aimrt::channel::ContextRef,
+                                   aimrt_channel_loaned_message_base_t& loaned_msg) noexcept {
+      auto& wrapper = *static_cast<RosPubWrapper*>(impl);
+      if (loaned_msg.msg_ptr == nullptr || loaned_msg.impl != &wrapper)
+        return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+      const auto ret = rcl_publish_loaned_message(
+          wrapper.publisher_ptr.get(), loaned_msg.msg_ptr, nullptr);
+      if (ret == RCL_RET_OK) {
+        loaned_msg = {};
+        return AIMRT_CHANNEL_LOAN_STATUS_OK;
+      }
+      if (rcl_error_is_set()) rcl_reset_error();
+      if (ret == RCL_RET_UNSUPPORTED)
+        return AIMRT_CHANNEL_LOAN_STATUS_RUNTIME_CANNOT_LOAN;
+      return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+    };
+    return AIMRT_CHANNEL_LOAN_STATUS_OK;
+  } catch (...) {
+    return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+  }
+}
+
+aimrt_channel_loan_status_t Ros2ChannelBackend::SubscribeLoaned(
+    const runtime::core::channel::LoanedSubscribeWrapper& subscribe_wrapper) noexcept {
+  try {
+    if (state_.load() != State::kInit)
+      return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
+
+    const auto& info = subscribe_wrapper.info;
+    if (!CheckRosMsg(info.msg_type))
+      return AIMRT_CHANNEL_LOAN_STATUS_UNSUPPORTED_MESSAGE_TYPE;
+
+    rclcpp::QoS qos(GetQos(Options::QosOptions()));
+    bool use_serialized = false;
+    auto find_option = std::find_if(
+        options_.sub_topics_options.begin(), options_.sub_topics_options.end(),
+        [&info](const Options::SubTopicOptions& option) {
+          try {
+            return std::regex_match(
+                info.topic_name.begin(), info.topic_name.end(),
+                std::regex(option.topic_name, std::regex::ECMAScript));
+          } catch (...) {
+            return false;
+          }
+        });
+    if (find_option != options_.sub_topics_options.end()) {
+      qos = GetQos(find_option->qos);
+      use_serialized = find_option->use_serialized;
+    }
+    if (use_serialized)
+      return AIMRT_CHANNEL_LOAN_STATUS_INCOMPATIBLE_BACKEND_CONFIG;
+
+    Key key{.topic_name = info.topic_name, .msg_type = info.msg_type};
+    auto find_itr = ros2_subscribe_wrapper_map_.find(key);
+    if (find_itr != ros2_subscribe_wrapper_map_.end()) {
+      if (find_itr->second.use_serialized)
+        return AIMRT_CHANNEL_LOAN_STATUS_INCOMPATIBLE_BACKEND_CONFIG;
+      auto* adapter = static_cast<Ros2AdapterSubscription*>(
+          find_itr->second.ros_sub_handle_ptr.get());
+      if (!adapter->can_loan_messages()) {
+        AIMRT_WARN("ROS2 subscriber loan is unavailable for topic '{}'. Ensure ROS_DISABLE_LOANED_MESSAGES=0 is set before process startup and the selected RMW supports loans.", info.topic_name);
+        return AIMRT_CHANNEL_LOAN_STATUS_RUNTIME_CANNOT_LOAN;
+      }
+      if (find_itr->second.loaned_sub_tool_ptr == nullptr) {
+        find_itr->second.loaned_sub_tool_ptr =
+            std::make_unique<aimrt::runtime::core::channel::LoanedSubscribeTool>();
+        adapter->SetLoanedSubscribeTool(
+            find_itr->second.loaned_sub_tool_ptr.get());
+      }
+      find_itr->second.loaned_sub_tool_ptr->AddSubscribeWrapper(
+          &subscribe_wrapper);
+      return AIMRT_CHANNEL_LOAN_STATUS_OK;
+    }
+
+    auto loaned_tool =
+        std::make_unique<aimrt::runtime::core::channel::LoanedSubscribeTool>();
+    loaned_tool->AddSubscribeWrapper(&subscribe_wrapper);
+    auto* loaned_tool_ptr = loaned_tool.get();
+
+    std::string ros2_topic_name = rclcpp::extend_name_with_sub_namespace(
+        info.topic_name, ros2_node_ptr_->get_sub_namespace());
+    auto node_topics_interface =
+        rclcpp::node_interfaces::get_node_topics_interface(*ros2_node_ptr_);
+
+#if RCLCPP_VERSION_MAJOR == 16
+    rclcpp::SubscriptionFactory factory{
+        [&subscribe_wrapper, loaned_tool_ptr](
+            rclcpp::node_interfaces::NodeBaseInterface* node_base,
+            const std::string& topic_name,
+            const rclcpp::QoS& qos) -> rclcpp::SubscriptionBase::SharedPtr {
+          const rclcpp::SubscriptionOptionsWithAllocator<std::allocator<void>>& options =
+              rclcpp::SubscriptionOptionsWithAllocator<std::allocator<void>>();
+          return std::make_shared<Ros2AdapterSubscription>(
+              node_base,
+              *static_cast<const rosidl_message_type_support_t*>(
+                  subscribe_wrapper.info.msg_type_support_ref.CustomTypeSupportPtr()),
+              topic_name,
+              options.to_rcl_subscription_options<void>(qos),
+              subscribe_wrapper.info,
+              nullptr,
+              loaned_tool_ptr,
+              false);
+        }};
+#elif RCLCPP_VERSION_MAJOR == 28
+    rclcpp::SubscriptionFactory factory{
+        [&subscribe_wrapper, loaned_tool_ptr](
+            rclcpp::node_interfaces::NodeBaseInterface* node_base,
+            const std::string& topic_name,
+            const rclcpp::QoS& qos) -> rclcpp::SubscriptionBase::SharedPtr {
+          const rclcpp::SubscriptionOptionsWithAllocator<std::allocator<void>>& options =
+              rclcpp::SubscriptionOptionsWithAllocator<std::allocator<void>>();
+          return std::make_shared<Ros2AdapterSubscription>(
+              node_base,
+              *static_cast<const rosidl_message_type_support_t*>(
+                  subscribe_wrapper.info.msg_type_support_ref.CustomTypeSupportPtr()),
+              topic_name,
+              options.to_rcl_subscription_options(qos),
+              subscribe_wrapper.info,
+              nullptr,
+              loaned_tool_ptr,
+              false);
+        }};
+#endif
+
+    auto subscriber = node_topics_interface->create_subscription(
+        ros2_topic_name, factory, qos);
+    auto* adapter = static_cast<Ros2AdapterSubscription*>(subscriber.get());
+    if (!adapter->can_loan_messages()) {
+      AIMRT_WARN("ROS2 subscriber loan is unavailable for topic '{}'. Ensure ROS_DISABLE_LOANED_MESSAGES=0 is set before process startup and the selected RMW supports loans.", info.topic_name);
+      return AIMRT_CHANNEL_LOAN_STATUS_RUNTIME_CANNOT_LOAN;
+    }
+    node_topics_interface->add_subscription(subscriber, nullptr);
+
+    ros2_subscribe_wrapper_map_.emplace(
+        key,
+        RosSubWrapper{
+            .sub_tool_ptr = nullptr,
+            .loaned_sub_tool_ptr = std::move(loaned_tool),
+            .ros_sub_handle_ptr = std::move(subscriber),
+            .use_serialized = false});
+    return AIMRT_CHANNEL_LOAN_STATUS_OK;
+  } catch (...) {
+    if (rcl_error_is_set()) rcl_reset_error();
+    return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
   }
 }
 

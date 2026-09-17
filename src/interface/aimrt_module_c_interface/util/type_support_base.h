@@ -9,6 +9,18 @@
 extern "C" {
 
 /**
+ * @brief Optional native-memory operations for backend-owned message loans.
+ * @note A type support returns this descriptor only when its native object can
+ *       be transported safely by a shared-memory backend.
+ */
+typedef struct {
+  size_t size;
+  size_t alignment;
+  bool (*construct)(void* storage);
+  void (*destroy)(void* object);
+} aimrt_native_loan_type_support_t;
+
+/**
  * @brief Type support interface
  *
  */
@@ -113,5 +125,12 @@ typedef struct {
 
   /// Implement pointer
   void* impl;
+
+  /**
+   * @brief Get optional native-memory loan type support.
+   * @note A null operation or null result means native-memory loans are not
+   *       supported for this message type.
+   */
+  const aimrt_native_loan_type_support_t* (*native_loan_type_support)(void* impl);
 } aimrt_type_support_base_t;
 }

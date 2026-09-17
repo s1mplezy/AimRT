@@ -1,0 +1,21 @@
+module aimrt_dds_test {
+  @final
+  struct PlainSample {
+    long value;
+  };
+
+  @final
+  struct KeyedPlainSample {
+    @key long key;
+    long value;
+  };
+
+  struct NonPlainSample {
+    string<64> value;
+  };
+
+  struct NestedSample {
+    PlainSample inner;
+    sequence<long, 4> values;
+  };
+};

@@ -1,0 +1,21 @@
+module aimrt_examples {
+  module dds {
+    struct ChannelMessage {
+      unsigned long count;
+      string<128> text;
+    };
+
+    struct AddRequest {
+      long lhs;
+      long rhs;
+    };
+
+    struct AddResponse {
+      long sum;
+    };
+
+    interface Calculator {
+      AddResponse Add(in AddRequest request);
+    };
+  };
+};

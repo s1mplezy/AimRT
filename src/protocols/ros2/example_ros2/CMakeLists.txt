@@ -27,6 +27,11 @@ set(BUILD_SHARED_LIBS ON)
 rosidl_generate_interfaces(${CUR_PACKAGE_NAME}
   "msg/RosTestMsg.msg"
   "msg/RosTestData.msg"
+  "msg/RosLoanedMsg.msg"
+  "msg/LoanedBenchmarkMessage1K.msg"
+  "msg/LoanedBenchmarkMessage64K.msg"
+  "msg/LoanedBenchmarkMessage1M.msg"
+  "msg/LoanedBenchmarkMessage16M.msg"
   "msg/BenchmarkMessage.msg"
   "msg/BenchmarkSignal.msg"
   "msg/BenchmarkStatus.msg"

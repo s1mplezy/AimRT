@@ -5,6 +5,9 @@ set_namespace()
 
 add_subdirectory(aimrt_module_c_interface)
 add_subdirectory(aimrt_module_cpp_interface)
+if(AIMRT_BUILD_WITH_DDS)
+  add_subdirectory(aimrt_module_dds_interface)
+endif()
 add_subdirectory(aimrt_pkg_c_interface)
 add_subdirectory(aimrt_type_support_pkg_c_interface)
 

@@ -115,6 +115,11 @@ class FrameworkAsyncChannelFilterManager {
     return {};
   }
 
+  bool HasFilters(std::string_view topic_name) const noexcept {
+    auto find_itr = filter_names_map_.find(topic_name);
+    return find_itr != filter_names_map_.end() && !find_itr->second.empty();
+  }
+
   void Clear() {
     filter_collector_map_.clear();
     filter_map_.clear();

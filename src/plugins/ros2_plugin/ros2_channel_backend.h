@@ -4,6 +4,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <numeric>
 #include <string>
 #include <unordered_map>
@@ -116,6 +117,11 @@ class Ros2ChannelBackend : public runtime::core::channel::ChannelBackendBase {
       const runtime::core::channel::PublishTypeWrapper& publish_type_wrapper) noexcept override;
   bool Subscribe(const runtime::core::channel::SubscribeWrapper& subscribe_wrapper) noexcept override;
   void Publish(runtime::core::channel::MsgWrapper& msg_wrapper) noexcept override;
+  aimrt_channel_loan_status_t PrepareLoanedPublisher(
+      const runtime::core::channel::PublishTypeWrapper& publish_type_wrapper,
+      runtime::core::channel::BackendLoanedPublisher& loaned_publisher) noexcept override;
+  aimrt_channel_loan_status_t SubscribeLoaned(
+      const runtime::core::channel::LoanedSubscribeWrapper& subscribe_wrapper) noexcept override;
 
   void SetNodePtr(const std::shared_ptr<rclcpp::Node>& ros2_node_ptr) {
     ros2_node_ptr_ = ros2_node_ptr;
@@ -160,7 +166,9 @@ class Ros2ChannelBackend : public runtime::core::channel::ChannelBackendBase {
 
   struct RosPubWrapper {
     std::unique_ptr<rcl_publisher_t> publisher_ptr;
-    bool use_serialized;
+    const rosidl_message_type_support_t* type_support_ptr = nullptr;
+    bool use_serialized = false;
+    std::mutex loan_operation_mutex;
   };
 
   // ros2 msg
@@ -173,7 +181,9 @@ class Ros2ChannelBackend : public runtime::core::channel::ChannelBackendBase {
 
   struct RosSubWrapper {
     std::unique_ptr<aimrt::runtime::core::channel::SubscribeTool> sub_tool_ptr;
+    std::unique_ptr<aimrt::runtime::core::channel::LoanedSubscribeTool> loaned_sub_tool_ptr;
     std::shared_ptr<rclcpp::SubscriptionBase> ros_sub_handle_ptr;
+    bool use_serialized;
   };
 
   std::unordered_map<

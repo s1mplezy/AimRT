@@ -23,6 +23,20 @@ option(AIMRT_BUILD_CLI_TOOLS "AimRT build aimrt command line tools." OFF)
 option(AIMRT_BUILD_WITH_PROTOBUF "AimRT build with protobuf." ON)
 option(AIMRT_BUILD_WITH_ROS2 "AimRT build with ros2." OFF)
 option(AIMRT_BUILD_PROTOCOLS "AimRT build protocols." ON)
+option(AIMRT_BUILD_WITH_DDS "AimRT build with DDS interface and code generation support." ON)
+option(AIMRT_BUILD_DDS_PLUGIN "AimRT build DDS runtime plugin, plugin tests and examples." ON)
+
+if(AIMRT_BUILD_DDS_PLUGIN AND NOT AIMRT_BUILD_WITH_DDS)
+  message(FATAL_ERROR "AIMRT_BUILD_DDS_PLUGIN=ON requires AIMRT_BUILD_WITH_DDS=ON.")
+endif()
+if(AIMRT_BUILD_DDS_PLUGIN AND NOT AIMRT_BUILD_RUNTIME)
+  message(FATAL_ERROR "AIMRT_BUILD_DDS_PLUGIN=ON requires AIMRT_BUILD_RUNTIME=ON.")
+endif()
+
+cmake_dependent_option(AIMRT_DDS_ENABLE_XTYPES "Generate DDS TypeObject support." ON "AIMRT_BUILD_WITH_DDS" OFF)
+set(FASTDDSGEN_EXECUTABLE
+    ""
+    CACHE FILEPATH "Fast DDS-Gen 4.3.0 executable (automatically found on PATH when empty).")
 
 option(AIMRT_BUILD_WITH_WERROR "AimRT build with -Werror option." ON)
 option(AIMRT_INSTALL "Enable installation of AimRT." ON)
@@ -88,7 +102,11 @@ if(AIMRT_MASTER_PROJECT)
   set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-  set(FETCHCONTENT_BASE_DIR ${CMAKE_SOURCE_DIR}/_deps)
+  if(NOT FETCHCONTENT_BASE_DIR)
+    set(FETCHCONTENT_BASE_DIR
+        "${CMAKE_SOURCE_DIR}/_deps"
+        CACHE PATH "FetchContent source and build directory.")
+  endif()
 
   set(BUILD_SHARED_LIBS OFF)
   set(CMAKE_C_VISIBILITY_PRESET hidden)
@@ -214,6 +232,66 @@ if(AIMRT_BUILD_WITH_ROS2)
 
   find_package(Python3 REQUIRED)
   include(GetEventsExecutor)
+endif()
+
+if(AIMRT_BUILD_WITH_DDS)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  find_package(Java REQUIRED COMPONENTS Runtime)
+  include(GetFastDDS)
+
+  include(FastDdsCodegenTool)
+  aimrt_find_dds_codegen_tool(FASTDDSGEN_EXECUTABLE "${FASTDDSGEN_EXECUTABLE}" OUTPUT_VARIABLE AIMRT_FASTDDSGEN_EXECUTABLE)
+  if(NOT FASTDDSGEN_EXECUTABLE)
+    set(FASTDDSGEN_EXECUTABLE
+        "${AIMRT_FASTDDSGEN_EXECUTABLE}"
+        CACHE FILEPATH "Fast DDS-Gen 4.3.0 executable (automatically found on PATH when empty)." FORCE)
+  endif()
+  aimrt_validate_dds_codegen_tools(FASTDDSGEN_EXECUTABLE "${FASTDDSGEN_EXECUTABLE}" JAVA_EXECUTABLE "${Java_JAVA_EXECUTABLE}")
+  include(FastDdsGenCode)
+  if(AIMRT_BUILD_TESTS)
+    add_test(NAME aimrt_dds_fastdds_get_module
+             COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/cmake/tests/test_get_fastdds.py --cmake ${CMAKE_COMMAND} --module-dir ${PROJECT_SOURCE_DIR}/cmake --fixture
+                     ${PROJECT_SOURCE_DIR}/cmake/tests/GetFastDDSFixture --work-dir ${CMAKE_BINARY_DIR}/get-fastdds-selection-test --mode selection)
+    set_tests_properties(aimrt_dds_fastdds_get_module PROPERTIES TIMEOUT 120)
+    set(aimrt_fastdds_isolation_test_args
+        --cmake
+        ${CMAKE_COMMAND}
+        --module-dir
+        ${PROJECT_SOURCE_DIR}/cmake
+        --fixture
+        ${PROJECT_SOURCE_DIR}/cmake/tests/GetFastDDSFixture
+        --work-dir
+        ${CMAKE_BINARY_DIR}/get-fastdds-isolation-test
+        --mode
+        isolation)
+    if(AIMRT_BUILD_WITH_ROS2 AND AIMRT_BUILD_ROS2_PLUGIN)
+      find_program(AIMRT_LDD_EXECUTABLE ldd REQUIRED)
+      list(
+        APPEND
+        aimrt_fastdds_isolation_test_args
+        --dds-plugin
+        $<TARGET_FILE:aimrt_plugins_dds_plugin>
+        --ros2-plugin
+        $<TARGET_FILE:aimrt_plugins_ros2_plugin>
+        --readelf
+        ${CMAKE_READELF}
+        --ldd
+        ${AIMRT_LDD_EXECUTABLE}
+        --link-mode
+        ${AIMRT_FASTDDS_LINK_MODE}
+        --selected-prefix
+        ${AIMRT_FASTDDS_PREFIX}
+        --fastcdr-runtime
+        ${AIMRT_FASTDDS_FASTCDR_RUNTIME_LIBRARY_PATH}
+        --fastcdr-version
+        ${AIMRT_FASTDDS_FASTCDR_VERSION})
+      foreach(approved_prefix IN LISTS AIMRT_FASTDDS_EPROSIMA_ALLOWLIST)
+        list(APPEND aimrt_fastdds_isolation_test_args --allow-prefix ${approved_prefix})
+      endforeach()
+    endif()
+    add_test(NAME aimrt_dds_ros2_dds_dependency_isolation COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/cmake/tests/test_get_fastdds.py ${aimrt_fastdds_isolation_test_args})
+    set_tests_properties(aimrt_dds_ros2_dds_dependency_isolation PROPERTIES TIMEOUT 120)
+  endif()
 endif()
 
 if(AIMRT_BUILD_RUNTIME)
@@ -357,6 +435,10 @@ list(
   AIMRT_BUILD_CLI_TOOLS
   AIMRT_BUILD_WITH_PROTOBUF
   AIMRT_BUILD_WITH_ROS2
+  AIMRT_BUILD_WITH_DDS
+  AIMRT_BUILD_DDS_PLUGIN
+  AIMRT_DDS_ENABLE_XTYPES
+  FASTDDSGEN_EXECUTABLE
   AIMRT_INSTALL
   AIMRT_BUILD_EXAMPLES
   AIMRT_BUILD_PYTHON_RUNTIME

@@ -1,0 +1,18 @@
+// Copyright (c) 2026 The AimRT Authors.
+// AimRT is licensed under Mulan PSL v2.
+
+module aimrt {
+  module dds {
+    struct MetadataEntry {
+      string<256> key;
+      string<4096> value;
+    };
+
+    struct SerializedMessage {
+      string<256> type_name;
+      string<32> serialization_type;
+      sequence<MetadataEntry, 64> metadata;
+      sequence<octet, 16777216> data;
+    };
+  };
+};

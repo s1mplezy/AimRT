@@ -40,6 +40,143 @@ struct convert<aimrt::plugins::iceoryx_plugin::IceoryxChannelBackend::Options> {
 }  // namespace YAML
 
 namespace aimrt::plugins::iceoryx_plugin {
+
+namespace {
+
+class SubscriberPayloadGuard {
+ public:
+  SubscriberPayloadGuard(
+      iox::popo::UntypedSubscriber* subscriber,
+      const void* payload) noexcept
+      : subscriber_(subscriber), payload_(payload) {}
+  ~SubscriberPayloadGuard() {
+    if (subscriber_ != nullptr && payload_ != nullptr)
+      subscriber_->release(payload_);
+  }
+
+  SubscriberPayloadGuard(const SubscriberPayloadGuard&) = delete;
+  SubscriberPayloadGuard& operator=(const SubscriberPayloadGuard&) = delete;
+
+ private:
+  iox::popo::UntypedSubscriber* subscriber_;
+  const void* payload_;
+};
+
+}  // namespace
+
+std::string IceoryxChannelBackend::MakeSerializedPattern(
+    const runtime::core::channel::TopicInfo& info) {
+  namespace util = aimrt::common::util;
+  return std::string("/channel/") + util::UrlEncode(info.topic_name) + "/" +
+         util::UrlEncode(info.msg_type);
+}
+
+std::string IceoryxChannelBackend::MakeNativePattern(
+    const runtime::core::channel::TopicInfo& info) {
+  namespace util = aimrt::common::util;
+  return std::string("/channel/") + util::UrlEncode(info.topic_name) + "/" +
+         util::UrlEncode(info.msg_type + "@aimrt_native_v1");
+}
+
+const aimrt_native_loan_type_support_t*
+IceoryxChannelBackend::GetDdsNativeTypeSupport(
+    const runtime::core::channel::TopicInfo& info) noexcept {
+  if (!info.msg_type.starts_with("dds:")) return nullptr;
+  const auto* type_support = info.msg_type_support_ref.NativeLoanTypeSupportPtr();
+  if (type_support == nullptr || type_support->size == 0 ||
+      type_support->alignment == 0 ||
+      (type_support->alignment & (type_support->alignment - 1)) != 0 ||
+      type_support->construct == nullptr || type_support->destroy == nullptr)
+    return nullptr;
+  return type_support;
+}
+
+void IceoryxChannelBackend::SetListenerThreadOptionsOnce() {
+  if (sched_info_set_) return;
+  sched_info_set_ = true;
+
+  if (!options_.listener_thread_name.empty())
+    runtime::core::util::SetNameForCurrentThread(
+        options_.listener_thread_name);
+  if (!options_.listener_thread_bind_cpu.empty())
+    runtime::core::util::BindCpuForCurrentThread(
+        options_.listener_thread_bind_cpu);
+  if (!options_.listener_thread_sched_policy.empty())
+    runtime::core::util::SetCpuSchedForCurrentThread(
+        options_.listener_thread_sched_policy);
+}
+
+IceoryxChannelBackend::NativeSubscriptionRoute*
+IceoryxChannelBackend::GetOrCreateNativeSubscriptionRoute(
+    const runtime::core::channel::TopicInfo& info) {
+  const auto pattern = MakeNativePattern(info);
+  if (const auto itr = native_subscription_route_map_.find(pattern);
+      itr != native_subscription_route_map_.end())
+    return itr->second.get();
+
+  const auto* native_type_support = GetDdsNativeTypeSupport(info);
+  AIMRT_CHECK_ERROR_THROW(
+      native_type_support != nullptr,
+      "DDS native-memory type support is unavailable for topic '{}' type '{}'.",
+      info.topic_name, info.msg_type);
+
+  auto route = std::make_unique<NativeSubscriptionRoute>();
+  route->msg_type_support_ref = info.msg_type_support_ref;
+  auto* route_ptr = route.get();
+  native_subscription_route_map_.emplace(pattern, std::move(route));
+
+  try {
+    iceoryx_manager_.RegisterSubscriber(
+        pattern,
+        [this, route_ptr](iox::popo::UntypedSubscriber* subscriber) {
+          try {
+            SetListenerThreadOptionsOnce();
+            while (subscriber->hasData()) {
+              subscriber->take()
+                  .and_then([&](const void* payload) {
+                    SubscriberPayloadGuard release_guard(subscriber, payload);
+                    auto ctx_ptr = std::make_shared<aimrt::channel::Context>(
+                        aimrt_channel_context_type_t::AIMRT_CHANNEL_SUBSCRIBER_CONTEXT);
+                    ctx_ptr->SetSerializationType("dds_xcdr2");
+                    ctx_ptr->SetMetaValue(
+                        AIMRT_CHANNEL_CONTEXT_KEY_BACKEND, Name());
+
+                    if (route_ptr->has_loaned_subscriber)
+                      route_ptr->loaned_subscribe_tool.DoSubscribeCallback(
+                          ctx_ptr, payload);
+
+                    if (route_ptr->has_ordinary_subscriber) {
+                      auto message =
+                          route_ptr->msg_type_support_ref.CreateSharedPtr();
+                      AIMRT_CHECK_ERROR_THROW(
+                          message != nullptr,
+                          "Create DDS native subscriber message failed.");
+                      route_ptr->msg_type_support_ref.Copy(
+                          payload, message.get());
+                      route_ptr->ordinary_subscribe_tool.DoSubscribeCallback(
+                          ctx_ptr,
+                          *route_ptr->ordinary_subscribe_tool.FirstSubscribeWrapper(),
+                          message);
+                    }
+                  })
+                  .or_else([](auto&) {});
+            }
+          } catch (const std::exception& e) {
+            AIMRT_WARN(
+                "Handle Iceoryx native channel msg failed, exception info: {}",
+                e.what());
+          }
+        });
+  } catch (...) {
+    native_subscription_route_map_.erase(pattern);
+    throw;
+  }
+
+  AIMRT_INFO("Register native subscribe type to iceoryx channel, url: {}",
+             pattern);
+  return route_ptr;
+}
+
 void IceoryxChannelBackend::Initialize(YAML::Node options_node) {
   // todo: check options_node->shm_init_size
 
@@ -71,15 +208,27 @@ bool IceoryxChannelBackend::RegisterPublishType(
   try {
     AIMRT_CHECK_ERROR_THROW(state_.load() == State::kInit,
                             "Method can only be called when state is 'Init'.");
-    namespace util = aimrt::common::util;
-
     const auto& info = publish_type_wrapper.info;
-    std::string pattern = std::string("/channel/") +
-                          util::UrlEncode(info.topic_name) + "/" +
-                          util::UrlEncode(info.msg_type);
+    const auto* native_type_support = GetDdsNativeTypeSupport(info);
+    const std::string pattern = native_type_support != nullptr
+                                    ? MakeNativePattern(info)
+                                    : MakeSerializedPattern(info);
 
     // register publisher with url to iceoryx
     iceoryx_manager_.RegisterPublisher(pattern);
+
+    if (native_type_support != nullptr &&
+        !native_publisher_route_map_.contains(pattern)) {
+      auto* publisher = iceoryx_manager_.GetPublisher(pattern);
+      AIMRT_CHECK_ERROR_THROW(
+          publisher != nullptr,
+          "Native iceoryx publisher '{}' was not registered.", pattern);
+      native_publisher_route_map_.emplace(
+          pattern,
+          std::make_unique<NativePublisherRoute>(NativePublisherRoute{
+              .publisher = publisher,
+              .type_support = native_type_support}));
+    }
 
     AIMRT_INFO("Register publish type to iceoryx channel, url: {}", pattern);
 
@@ -99,9 +248,14 @@ bool IceoryxChannelBackend::Subscribe(
     namespace util = aimrt::common::util;
 
     const auto& info = subscribe_wrapper.info;
-    std::string pattern = std::string("/channel/") +
-                          util::UrlEncode(info.topic_name) + "/" +
-                          util::UrlEncode(info.msg_type);
+    if (GetDdsNativeTypeSupport(info) != nullptr) {
+      auto* route = GetOrCreateNativeSubscriptionRoute(info);
+      route->ordinary_subscribe_tool.AddSubscribeWrapper(&subscribe_wrapper);
+      route->has_ordinary_subscriber = true;
+      return true;
+    }
+
+    const std::string pattern = MakeSerializedPattern(info);
 
     auto find_itr = subscribe_wrapper_map_.find(pattern);
     if (find_itr != subscribe_wrapper_map_.end()) {
@@ -120,24 +274,7 @@ bool IceoryxChannelBackend::Subscribe(
     auto handle =
         [this, topic_name = info.topic_name, sub_tool_ptr](iox::popo::UntypedSubscriber* subscriber) {
           try {
-            // if not set sched info, set it
-            if (!sched_info_set_) [[unlikely]] {
-              sched_info_set_ = true;
-              auto thread_name = options_.listener_thread_name;
-              if (!thread_name.empty()) {
-                runtime::core::util::SetNameForCurrentThread(thread_name);
-              }
-
-              auto cpu_set = options_.listener_thread_bind_cpu;
-              if (!cpu_set.empty()) {
-                runtime::core::util::BindCpuForCurrentThread(cpu_set);
-              }
-
-              auto sched_policy = options_.listener_thread_sched_policy;
-              if (!sched_policy.empty()) {
-                runtime::core::util::SetCpuSchedForCurrentThread(sched_policy);
-              }
-            }
+            SetListenerThreadOptionsOnce();
             // read data from shared memory : pkg_size | serialization_type | ctx_num | ctx_key1 | ctx_val1 | ... | ctx_keyN | ctx_valN | msg_buffer
             // use while struck to make sure all packages are read
             while (subscriber->hasData()) {
@@ -208,9 +345,41 @@ void IceoryxChannelBackend::Publish(runtime::core::channel::MsgWrapper& msg_wrap
 
     const auto& info = msg_wrapper.info;
 
-    std::string iceoryx_pub_topic = std::string("/channel/") +
-                                    util::UrlEncode(info.topic_name) + "/" +
-                                    util::UrlEncode(info.msg_type);
+    if (const auto* native_type_support = GetDdsNativeTypeSupport(info);
+        native_type_support != nullptr) {
+      const auto native_pattern = MakeNativePattern(info);
+      const auto route_itr = native_publisher_route_map_.find(native_pattern);
+      AIMRT_CHECK_ERROR_THROW(
+          route_itr != native_publisher_route_map_.end(),
+          "Native iceoryx publisher '{}' is not registered.", native_pattern);
+      auto& route = *route_itr->second;
+
+      CheckMsg(msg_wrapper);
+      auto raw_loan = route.publisher->LoanRaw(
+          native_type_support->size, native_type_support->alignment);
+      AIMRT_CHECK_ERROR_THROW(
+          raw_loan,
+          "Loan native iceoryx memory failed for topic '{}' type '{}'.",
+          info.topic_name, info.msg_type);
+
+      bool constructed = false;
+      try {
+        AIMRT_CHECK_ERROR_THROW(
+            native_type_support->construct(raw_loan.ptr),
+            "Construct DDS native message failed for topic '{}' type '{}'.",
+            info.topic_name, info.msg_type);
+        constructed = true;
+        info.msg_type_support_ref.Copy(msg_wrapper.msg_ptr, raw_loan.ptr);
+        route.publisher->PublishRaw(raw_loan.ptr);
+        return;
+      } catch (...) {
+        if (constructed) native_type_support->destroy(raw_loan.ptr);
+        route.publisher->ReleaseRaw(raw_loan.ptr);
+        throw;
+      }
+    }
+
+    std::string iceoryx_pub_topic = MakeSerializedPattern(info);
 
     // find publisher
     auto* iox_pub_ctx_ptr = iceoryx_manager_.GetPublisher(iceoryx_pub_topic);
@@ -328,6 +497,107 @@ void IceoryxChannelBackend::Publish(runtime::core::channel::MsgWrapper& msg_wrap
     return;
   } catch (const std::exception& e) {
     AIMRT_ERROR("{}", e.what());
+  }
+}
+
+aimrt_channel_loan_status_t IceoryxChannelBackend::PrepareLoanedPublisher(
+    const runtime::core::channel::PublishTypeWrapper& publish_type_wrapper,
+    runtime::core::channel::BackendLoanedPublisher& loaned_publisher) noexcept {
+  loaned_publisher = {};
+  try {
+    if (state_.load() != State::kStart)
+      return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
+
+    const auto& info = publish_type_wrapper.info;
+    if (!info.msg_type.starts_with("dds:"))
+      return AIMRT_CHANNEL_LOAN_STATUS_UNSUPPORTED_MESSAGE_TYPE;
+    if (GetDdsNativeTypeSupport(info) == nullptr)
+      return AIMRT_CHANNEL_LOAN_STATUS_UNSUPPORTED_MESSAGE_TYPE;
+
+    const auto pattern = MakeNativePattern(info);
+    const auto route_itr = native_publisher_route_map_.find(pattern);
+    if (route_itr == native_publisher_route_map_.end())
+      return AIMRT_CHANNEL_LOAN_STATUS_UNREGISTERED_MESSAGE_TYPE;
+
+    loaned_publisher.impl = route_itr->second.get();
+    loaned_publisher.borrow = &BorrowNativeMessage;
+    loaned_publisher.publish = &PublishNativeMessage;
+    return AIMRT_CHANNEL_LOAN_STATUS_OK;
+  } catch (...) {
+    return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+  }
+}
+
+aimrt_channel_loan_status_t IceoryxChannelBackend::BorrowNativeMessage(
+    void* impl,
+    aimrt_channel_loaned_message_base_t& loaned_msg) noexcept {
+  loaned_msg = {};
+  auto* route = static_cast<NativePublisherRoute*>(impl);
+  if (route == nullptr || route->publisher == nullptr ||
+      route->type_support == nullptr)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+
+  auto raw_loan = route->publisher->LoanRaw(
+      route->type_support->size, route->type_support->alignment);
+  if (!raw_loan) return AIMRT_CHANNEL_LOAN_STATUS_LOAN_UNAVAILABLE;
+  if (!route->type_support->construct(raw_loan.ptr)) {
+    route->publisher->ReleaseRaw(raw_loan.ptr);
+    return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+  }
+
+  loaned_msg.msg_ptr = raw_loan.ptr;
+  loaned_msg.impl = route;
+  loaned_msg.release = &ReleaseNativeMessage;
+  return AIMRT_CHANNEL_LOAN_STATUS_OK;
+}
+
+aimrt_channel_loan_status_t IceoryxChannelBackend::PublishNativeMessage(
+    void* impl,
+    aimrt::channel::ContextRef,
+    aimrt_channel_loaned_message_base_t& loaned_msg) noexcept {
+  auto* route = static_cast<NativePublisherRoute*>(impl);
+  if (route == nullptr || route->publisher == nullptr ||
+      loaned_msg.msg_ptr == nullptr || loaned_msg.impl != route ||
+      loaned_msg.release != &ReleaseNativeMessage)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+
+  route->publisher->PublishRaw(loaned_msg.msg_ptr);
+  loaned_msg = {};
+  return AIMRT_CHANNEL_LOAN_STATUS_OK;
+}
+
+aimrt_channel_loan_status_t IceoryxChannelBackend::ReleaseNativeMessage(
+    void* impl, void* msg_ptr) noexcept {
+  auto* route = static_cast<NativePublisherRoute*>(impl);
+  if (route == nullptr || route->publisher == nullptr ||
+      route->type_support == nullptr || msg_ptr == nullptr)
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+
+  route->type_support->destroy(msg_ptr);
+  route->publisher->ReleaseRaw(msg_ptr);
+  return AIMRT_CHANNEL_LOAN_STATUS_OK;
+}
+
+aimrt_channel_loan_status_t IceoryxChannelBackend::SubscribeLoaned(
+    const runtime::core::channel::LoanedSubscribeWrapper& subscribe_wrapper) noexcept {
+  try {
+    if (state_.load() != State::kInit)
+      return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
+
+    const auto& info = subscribe_wrapper.info;
+    if (!info.msg_type.starts_with("dds:") ||
+        GetDdsNativeTypeSupport(info) == nullptr)
+      return AIMRT_CHANNEL_LOAN_STATUS_UNSUPPORTED_MESSAGE_TYPE;
+
+    auto* route = GetOrCreateNativeSubscriptionRoute(info);
+    route->loaned_subscribe_tool.AddSubscribeWrapper(&subscribe_wrapper);
+    route->has_loaned_subscriber = true;
+    return AIMRT_CHANNEL_LOAN_STATUS_OK;
+  } catch (const std::exception& e) {
+    AIMRT_ERROR("Register Iceoryx loaned subscriber failed: {}", e.what());
+    return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+  } catch (...) {
+    return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
   }
 }
 

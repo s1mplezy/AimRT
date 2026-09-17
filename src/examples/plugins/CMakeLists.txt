@@ -3,6 +3,10 @@
 
 set_namespace()
 
+if(AIMRT_BUILD_DDS_PLUGIN)
+  add_subdirectory(dds_plugin)
+endif()
+
 if(AIMRT_BUILD_NET_PLUGIN)
   add_subdirectory(net_plugin)
 endif()

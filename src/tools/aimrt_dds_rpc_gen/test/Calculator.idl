@@ -1,0 +1,14 @@
+module example {
+  struct AddRequest {
+    long lhs;
+    long rhs;
+  };
+
+  struct AddResponse {
+    long sum;
+  };
+
+  interface Calculator {
+    AddResponse Add(in AddRequest request);
+  };
+};

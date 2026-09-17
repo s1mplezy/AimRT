@@ -3,6 +3,10 @@
 
 set_namespace()
 
+if(AIMRT_BUILD_WITH_DDS)
+  add_subdirectory(aimrt_dds_rpc_gen)
+endif()
+
 if(AIMRT_BUILD_WITH_PROTOBUF)
   add_subdirectory(protoc_plugin_cpp_gen_aimrt_cpp_rpc)
   add_subdirectory(protoc_plugin_py_gen_aimrt_cpp_rpc)

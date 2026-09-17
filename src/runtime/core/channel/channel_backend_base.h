@@ -3,11 +3,23 @@
 
 #pragma once
 
+#include "aimrt_module_c_interface/channel/channel_handle_base.h"
 #include "core/channel/channel_registry.h"
 
 #include "yaml-cpp/yaml.h"
 
 namespace aimrt::runtime::core::channel {
+
+struct BackendLoanedPublisher {
+  void* impl = nullptr;
+  aimrt_channel_loan_status_t (*borrow)(
+      void* impl,
+      aimrt_channel_loaned_message_base_t& loaned_msg) noexcept = nullptr;
+  aimrt_channel_loan_status_t (*publish)(
+      void* impl,
+      aimrt::channel::ContextRef ctx_ref,
+      aimrt_channel_loaned_message_base_t& loaned_msg) noexcept = nullptr;
+};
 
 class ChannelBackendBase {
  public:
@@ -63,6 +75,24 @@ class ChannelBackendBase {
    * @param publish_wrapper
    */
   virtual void Publish(MsgWrapper& msg_wrapper) noexcept = 0;
+
+  /**
+   * @brief Borrow a backend-owned native message.
+   * @note Default implementation keeps existing backends source-compatible.
+   */
+  virtual aimrt_channel_loan_status_t PrepareLoanedPublisher(
+      const PublishTypeWrapper& publish_type_wrapper,
+      BackendLoanedPublisher& loaned_publisher) noexcept {
+    return AIMRT_CHANNEL_LOAN_STATUS_UNSUPPORTED_BACKEND;
+  }
+
+  /**
+   * @brief Register a callback-scoped loaned subscription.
+   */
+  virtual aimrt_channel_loan_status_t SubscribeLoaned(
+      const LoanedSubscribeWrapper& subscribe_wrapper) noexcept {
+    return AIMRT_CHANNEL_LOAN_STATUS_UNSUPPORTED_BACKEND;
+  }
 };
 
 }  // namespace aimrt::runtime::core::channel

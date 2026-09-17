@@ -1,0 +1,36 @@
+aimrt:
+  plugin:
+    plugins:
+      - name: dds_plugin
+        path: ./libaimrt_dds_plugin.so
+        options:
+          domain_id: 41
+          participant_name: aimrt_dds_example_channel_publisher
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+  executor:
+    executors:
+      - name: work_thread_pool
+        type: asio_thread
+        options:
+          thread_num: 2
+  channel:
+    backends:
+      - type: dds
+        options: {}
+    pub_topics_options:
+      - topic_name: "example/dds/channel"
+        enable_backends: [dds]
+  module:
+    pkgs:
+      - path: ./libdds_chn_pub_pkg.so
+        enable_modules: [DdsNormalPublisherModule]
+    modules:
+      - name: DdsNormalPublisherModule
+        log_lvl: INFO
+
+DdsNormalPublisherModule:
+  topic_name: "example/dds/channel"
+  channel_frequency: 2.0

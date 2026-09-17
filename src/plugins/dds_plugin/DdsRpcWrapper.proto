@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package aimrt.dds.rpc.test;
+
+message AddRequest {
+  int32 lhs = 1;
+  int32 rhs = 2;
+}
+
+message AddResponse {
+  int32 sum = 1;
+}

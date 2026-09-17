@@ -95,6 +95,7 @@ AimRT provides a large number of official plugins. You can learn about the funct
 plugins/net_plugin.md
 plugins/mqtt_plugin.md
 plugins/ros2_plugin.md
+plugins/dds_plugin.md
 plugins/parameter_plugin.md
 plugins/time_manipulator_plugin.md
 plugins/log_control_plugin.md

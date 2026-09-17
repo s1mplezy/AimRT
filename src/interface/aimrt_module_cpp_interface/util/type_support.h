@@ -101,6 +101,11 @@ class TypeSupportRef {
     return base_ptr_->custom_type_support_ptr(base_ptr_->impl);
   }
 
+  const aimrt_native_loan_type_support_t* NativeLoanTypeSupportPtr() const {
+    if (base_ptr_->native_loan_type_support == nullptr) return nullptr;
+    return base_ptr_->native_loan_type_support(base_ptr_->impl);
+  }
+
   std::string_view DefaultSerializationType() const {
     return ToStdStringView(base_ptr_->serialization_types_supported_list(base_ptr_->impl)[0]);
   }

@@ -61,6 +61,10 @@ endif()
 # Set test of target
 if(AIMRT_BUILD_TESTS AND test_files)
   add_gtest_target(TEST_TARGET ${CUR_TARGET_NAME} TEST_SRC ${test_files})
+  set_tests_properties(${CUR_TARGET_NAME}_test PROPERTIES ENVIRONMENT "ROS_DISABLE_LOANED_MESSAGES=0;RMW_IMPLEMENTATION=rmw_fastrtps_cpp")
+  find_package(std_msgs REQUIRED)
+  target_link_libraries(${CUR_TARGET_NAME}_test PRIVATE aimrt::interface::aimrt_module_ros2_interface std_msgs::std_msgs__rosidl_generator_cpp
+                                                        std_msgs::std_msgs__rosidl_typesupport_cpp std_msgs::std_msgs__rosidl_typesupport_introspection_cpp)
 endif()
 
 # Set misc of target

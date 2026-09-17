@@ -1,0 +1,5 @@
+#include "Shared.idl"
+
+module dds_codegen_gate {
+  interface Arithmetic { shared::Response Add(in shared::Request request); };
+};

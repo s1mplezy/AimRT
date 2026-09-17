@@ -1,0 +1,61 @@
+aimrt:
+  plugin:
+    plugins:
+      - name: iceoryx_plugin
+        path: ./libaimrt_iceoryx_plugin.so
+        options:
+          shm_init_size: 2048
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+  executor:
+    executors:
+      - name: publish_control_executor
+        type: simple_thread
+      - name: publish_executor_0
+        type: simple_thread
+      - name: publish_executor_1
+        type: simple_thread
+      - name: publish_executor_2
+        type: simple_thread
+      - name: publish_executor_3
+        type: simple_thread
+      - name: publish_executor_4
+        type: simple_thread
+      - name: publish_executor_5
+        type: simple_thread
+      - name: publish_executor_6
+        type: simple_thread
+      - name: publish_executor_7
+        type: simple_thread
+      - name: publish_executor_8
+        type: simple_thread
+      - name: publish_executor_9
+        type: simple_thread
+  channel:
+    backends:
+      - type: iceoryx
+    pub_topics_options:
+      - topic_name: (.*)
+        enable_backends: [iceoryx]
+  module:
+    pkgs:
+      - path: ./libdds_chn_pub_pkg.so
+        enable_modules: [LoanedBenchmarkPublisherModule]
+    modules:
+      - name: LoanedBenchmarkPublisherModule
+        log_lvl: INFO
+
+LoanedBenchmarkPublisherModule:
+  max_topic_number: 10
+  max_parallel_number: 10
+  loan_message_size: ${MSG_SIZE}
+  bench_plans:
+    - perf_mode: ${PERF_MODE}
+      channel_frq: ${CHANNEL_FRQ}
+      freq: ${FREQ}
+      msg_count: ${MSG_COUNT}
+      parallel_number: ${PARALLEL_NUMBER}
+      topic_number: ${TOPIC_NUMBER}
+      msg_size: ${MSG_SIZE}

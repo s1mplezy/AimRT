@@ -28,6 +28,8 @@ target_link_libraries(
   PRIVATE aimrt::interface::aimrt_pkg_c_interface
           ${CUR_SUPERIOR_NAMESPACE}::normal_publisher_module
           ${CUR_SUPERIOR_NAMESPACE}::normal_subscriber_module
+          ${CUR_SUPERIOR_NAMESPACE}::loaned_publisher_module
+          ${CUR_SUPERIOR_NAMESPACE}::loaned_subscriber_module
           ${CUR_SUPERIOR_NAMESPACE}::benchmark_publisher_module
           ${CUR_SUPERIOR_NAMESPACE}::benchmark_subscriber_module)
 

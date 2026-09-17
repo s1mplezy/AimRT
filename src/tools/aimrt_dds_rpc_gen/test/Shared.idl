@@ -1,0 +1,4 @@
+module shared {
+  struct Request { long value; };
+  struct Response { long value; };
+};

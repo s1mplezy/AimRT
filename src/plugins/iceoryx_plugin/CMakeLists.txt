@@ -48,6 +48,29 @@ endif()
 # Set test of target
 if(AIMRT_BUILD_TESTS AND test_files)
   add_gtest_target(TEST_TARGET ${CUR_TARGET_NAME} TEST_SRC ${test_files})
+  if(UNIX AND TARGET iox-roudi)
+    add_dependencies(${CUR_TARGET_NAME}_test iox-roudi)
+    target_compile_definitions(
+      ${CUR_TARGET_NAME}_test
+      PRIVATE AIMRT_ICEORYX_ROUDI_PATH="$<TARGET_FILE:iox-roudi>")
+  endif()
+  if(AIMRT_BUILD_WITH_DDS)
+    aimrt_add_dds_idl_codegen(
+      TARGET_NAME
+      aimrt_iceoryx_loan_fixture
+      IDL_FILES
+      ${CMAKE_CURRENT_SOURCE_DIR}/IceoryxLoanTypes.idl
+      OUTPUT_DIR
+      ${CMAKE_CURRENT_BINARY_DIR}/loan-generated
+      ATTACH_TO_TARGET
+      ${CUR_TARGET_NAME}_test)
+    target_compile_definitions(${CUR_TARGET_NAME}_test PRIVATE AIMRT_ICEORYX_TEST_WITH_DDS=1)
+    target_link_libraries(
+      ${CUR_TARGET_NAME}_test
+      PRIVATE aimrt::interface::aimrt_module_dds_interface
+              aimrt::deps::fastdds)
+  endif()
+  set_tests_properties(${CUR_TARGET_NAME}_test PROPERTIES TIMEOUT 30)
 endif()
 
 # Set misc of target

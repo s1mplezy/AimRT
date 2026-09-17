@@ -55,3 +55,7 @@ if(AIMRT_BUILD_WITH_ROS2)
     add_subdirectory(plugins/ros2_plugin_proto)
   endif()
 endif()
+
+if(AIMRT_BUILD_WITH_DDS AND AIMRT_BUILD_EXAMPLES)
+  add_subdirectory(dds/example)
+endif()

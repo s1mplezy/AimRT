@@ -44,6 +44,14 @@ inline void Publish(PublisherRef publisher, const MsgType& msg) {
 }
 
 template <std::derived_from<google::protobuf::Message> MsgType>
+inline LoanedPublisher<MsgType> PrepareLoanedPublisher(PublisherRef publisher) {
+  static const std::string kMsgTypeName = "pb:" + MsgType().GetTypeName();
+  aimrt_channel_loaned_publisher_base_t route{};
+  const auto status = publisher.PrepareLoanedPublisher(kMsgTypeName, &route);
+  return LoanedPublisher<MsgType>(LoanedPublisherRef(status, route));
+}
+
+template <std::derived_from<google::protobuf::Message> MsgType>
 struct MessagePublisherTraits<MsgType> {
   static void PublishMsg(PublisherRef publisher, ContextRef ctx_ref, const MsgType& msg) {
     Publish(publisher, ctx_ref, msg);
@@ -82,6 +90,28 @@ inline bool Subscribe(
         callback(std::shared_ptr<const MsgType>(
             static_cast<const MsgType*>(msg_ptr),
             [release_callback{std::move(release_callback)}](const MsgType*) { release_callback(); }));
+      });
+}
+
+template <std::derived_from<google::protobuf::Message> MsgType>
+inline LoanStatus SubscribeLoaned(
+    SubscriberRef subscriber,
+    std::function<void(
+        ContextRef,
+        const LoanedMessageView<const MsgType>&)>&& callback) {
+  return subscriber.SubscribeLoaned(
+      GetProtobufMessageTypeSupport<MsgType>(),
+      [callback{std::move(callback)}](
+          const aimrt_channel_context_base_t* ctx_ptr,
+          const void* msg_ptr) noexcept {
+        try {
+          const LoanedMessageView<const MsgType> view(msg_ptr);
+          callback(ContextRef(ctx_ptr), view);
+        } catch (const std::exception& e) {
+          details::ReportLoanedSubscriberCallbackException(e.what());
+        } catch (...) {
+          details::ReportLoanedSubscriberCallbackException(nullptr);
+        }
       });
 }
 
@@ -152,6 +182,24 @@ class PublisherProxy<MsgType> : public PublisherProxyBase {
 
   void Publish(const MsgType& msg) {
     Publish(ContextRef(), msg);
+  }
+
+  LoanedMessage<MsgType> BorrowLoanedMessage() const {
+    return BorrowLoanedMessageImpl<MsgType>();
+  }
+
+  LoanStatus Publish(ContextRef ctx_ref, LoanedMessage<MsgType>&& loaned_msg) const {
+    if (ctx_ref) {
+      if (ctx_ref.GetSerializationType().empty()) ctx_ref.SetSerializationType("pb");
+      return PublishLoanedMessageImpl(ctx_ref, std::move(loaned_msg));
+    }
+    Context ctx;
+    ctx.SetSerializationType("pb");
+    return PublishLoanedMessageImpl(ctx, std::move(loaned_msg));
+  }
+
+  LoanStatus Publish(LoanedMessage<MsgType>&& loaned_msg) const {
+    return Publish(ContextRef(), std::move(loaned_msg));
   }
 };
 
@@ -231,6 +279,26 @@ class SubscriberProxy<MsgType> : public SubscriberProxyBase {
                   callback(*(static_cast<const MsgType*>(msg_ptr)))) |
               aimrt::co::Then(
                   SubscriberReleaseCallback(release_callback_base)));
+        });
+  }
+
+  LoanStatus SubscribeLoaned(
+      std::function<void(
+          ContextRef,
+          const LoanedMessageView<const MsgType>&)>&& callback) {
+    return subscriber_.SubscribeLoaned(
+        GetProtobufMessageTypeSupport<MsgType>(),
+        [callback{std::move(callback)}](
+            const aimrt_channel_context_base_t* ctx_ptr,
+            const void* msg_ptr) noexcept {
+          try {
+            const LoanedMessageView<const MsgType> view(msg_ptr);
+            callback(ContextRef(ctx_ptr), view);
+          } catch (const std::exception& e) {
+            details::ReportLoanedSubscriberCallbackException(e.what());
+          } catch (...) {
+            details::ReportLoanedSubscriberCallbackException(nullptr);
+          }
         });
   }
 };

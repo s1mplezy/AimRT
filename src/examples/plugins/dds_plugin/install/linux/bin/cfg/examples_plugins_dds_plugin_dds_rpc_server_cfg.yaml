@@ -1,0 +1,26 @@
+aimrt:
+  plugin:
+    plugins:
+      - name: dds_plugin
+        path: ./libaimrt_dds_plugin.so
+        options:
+          domain_id: 42
+          participant_name: aimrt_dds_example_rpc_server
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+  rpc:
+    backends:
+      - type: dds
+        options: {}
+    servers_options:
+      - func_name: "dds:/aimrt_examples::dds::Calculator/Add"
+        enable_backends: [dds]
+  module:
+    pkgs:
+      - path: ./libdds_rpc_server_pkg.so
+        enable_modules: [DdsNormalRpcSyncServerModule]
+    modules:
+      - name: DdsNormalRpcSyncServerModule
+        log_lvl: INFO

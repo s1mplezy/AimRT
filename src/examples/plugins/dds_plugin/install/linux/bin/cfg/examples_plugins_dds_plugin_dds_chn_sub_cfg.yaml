@@ -1,0 +1,29 @@
+aimrt:
+  plugin:
+    plugins:
+      - name: dds_plugin
+        path: ./libaimrt_dds_plugin.so
+        options:
+          domain_id: 41
+          participant_name: aimrt_dds_example_channel_subscriber
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+  channel:
+    backends:
+      - type: dds
+        options: {}
+    sub_topics_options:
+      - topic_name: "example/dds/channel"
+        enable_backends: [dds]
+  module:
+    pkgs:
+      - path: ./libdds_chn_sub_pkg.so
+        enable_modules: [DdsNormalSubscriberModule]
+    modules:
+      - name: DdsNormalSubscriberModule
+        log_lvl: INFO
+
+DdsNormalSubscriberModule:
+  topic_name: "example/dds/channel"

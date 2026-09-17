@@ -1,0 +1,35 @@
+aimrt:
+  plugin:
+    plugins:
+      - name: dds_plugin
+        path: ./libaimrt_dds_plugin.so
+        options:
+          domain_id: 42
+          participant_name: aimrt_dds_example_rpc_client
+  log:
+    core_lvl: INFO
+    backends:
+      - type: console
+  executor:
+    executors:
+      - name: work_thread_pool
+        type: asio_thread
+        options:
+          thread_num: 2
+  rpc:
+    backends:
+      - type: dds
+        options: {}
+    clients_options:
+      - func_name: "dds:/aimrt_examples::dds::Calculator/Add"
+        enable_backends: [dds]
+  module:
+    pkgs:
+      - path: ./libdds_rpc_client_pkg.so
+        enable_modules: [DdsNormalRpcSyncClientModule]
+    modules:
+      - name: DdsNormalRpcSyncClientModule
+        log_lvl: INFO
+
+DdsNormalRpcSyncClientModule:
+  rpc_frequency: 1.0
