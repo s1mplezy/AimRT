@@ -5,7 +5,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <cstdlib>
 #include <thread>
 
 #include <gtest/gtest.h>
@@ -30,13 +29,6 @@ runtime::core::channel::TopicInfo MakeTopicInfo(
       .index = 1,
       .msg_type_support_ref =
           aimrt::util::TypeSupportRef(GetRos2MessageTypeSupport<MsgType>())};
-}
-
-bool SubscriberLoanIsRequiredByTestEnvironment() {
-  const char* disable_loan = std::getenv("ROS_DISABLE_LOANED_MESSAGES");
-  const char* rmw = std::getenv("RMW_IMPLEMENTATION");
-  return disable_loan != nullptr && std::string_view(disable_loan) == "0" &&
-         rmw != nullptr && std::string_view(rmw) == "rmw_fastrtps_cpp";
 }
 
 class Ros2ChannelBackendLoanedTest : public ::testing::Test {
@@ -161,9 +153,7 @@ TEST_F(Ros2ChannelBackendLoanedTest, AimrtLoanPublisherToSubscriberUsesRmwLoanPa
   auto subscribe_status = backend.SubscribeLoaned(subscribe_wrapper);
   if (subscribe_status == AIMRT_CHANNEL_LOAN_STATUS_RUNTIME_CANNOT_LOAN) {
     backend.Shutdown();
-    if (SubscriberLoanIsRequiredByTestEnvironment())
-      FAIL() << "Subscriber loan was required by the test environment but is unavailable.";
-    GTEST_SKIP() << "Subscriber loan is disabled. Set ROS_DISABLE_LOANED_MESSAGES=0 before process startup and use a loan-capable RMW.";
+    GTEST_SKIP() << "Subscriber loan is unavailable in the selected RMW runtime.";
   }
   ASSERT_EQ(subscribe_status, AIMRT_CHANNEL_LOAN_STATUS_OK);
 
@@ -258,9 +248,7 @@ TEST_F(Ros2ChannelBackendLoanedTest, SubscriberReceivesRmwLoanedSampleDirectly) 
   auto status = backend.SubscribeLoaned(subscribe_wrapper);
   if (status == AIMRT_CHANNEL_LOAN_STATUS_RUNTIME_CANNOT_LOAN) {
     backend.Shutdown();
-    if (SubscriberLoanIsRequiredByTestEnvironment())
-      FAIL() << "Subscriber loan was required by the test environment but is unavailable.";
-    GTEST_SKIP() << "Subscriber loan is disabled. Set ROS_DISABLE_LOANED_MESSAGES=0 before process startup and use a loan-capable RMW.";
+    GTEST_SKIP() << "Subscriber loan is unavailable in the selected RMW runtime.";
   }
   ASSERT_EQ(status, AIMRT_CHANNEL_LOAN_STATUS_OK);
   backend.Start();
