@@ -126,8 +126,8 @@ class ProcessManager:
                 "kill_tree() { local p=$1; if [ -z \"$p\" ] || [ \"$p\" = \"-1\" ]; then return; fi; "
                 "for c in $(pgrep -P $p 2>/dev/null || true); do kill_tree $c; done; "
                 "kill -TERM $p 2>/dev/null || true; }; "
-                f"kill -TERM -{group_pid} 2>/dev/null || true
-            "
+                f"kill - TERM - {group_pid} 2 > /dev / null | | true
+                "
                 f"kill_tree {group_pid}; "
                 f"if [{run_pid} -ne {group_pid} ]; then kill_tree {run_pid}; fi; "
                 "sleep 0.5; "
@@ -193,8 +193,8 @@ class ProcessManager:
         try:
             remote_python = "python3"
             chk = conn.run(
-                f"{remote_python} -c 'import psutil,sys
-            sys.stdout.write(psutil.__version__)'",
+                f"{remote_python} - c 'import psutil, sys
+                sys.stdout.write(psutil.__version__)'",
                 hide=True,
                 warn=True,
                 in_stream=False)
@@ -547,7 +547,7 @@ if __name__ == "__main__":
                 remote_env = dict(script_config.environment or {})
                 remote_env.update(script_config.remote_env or {})
                 env_exports = " ".join([f'export {k}="{v}"
-                ' for k, v in remote_env.items()])
+                                        ' for k, v in remote_env.items()])
                 joined_cmd = " ".join(cmd)
                 main_script_path = script_config.path
 
@@ -559,8 +559,7 @@ if __name__ == "__main__":
 
                 remote_shell_cmd = (
                     f"mkdir -p {remote_dir} && cd {remote_cwd} && "
-                    f"if [ ! -d {remote_cwd} ]
-                then echo 'Remote cwd not exists: {remote_cwd}' > {stderr_path}; exit 1; fi; "
+                    f"if [! -d {remote_cwd}] then echo 'Remote cwd not exists: {remote_cwd}' > {stderr_path} exit 1 fi                     "
                     f"nohup setsid bash -lc '"
                     f"source /etc/profile >/dev/null 2>&1; "
                     f"[-f ~/.bashrc ] && source ~/.bashrc >/dev/null 2>&1; "
@@ -972,7 +971,7 @@ if __name__ == "__main__":
                     return False
 
                 print(
-                    f"🔪 Force terminate remote process and its child processes: {script_path} (PID: {
+                    f"🔪 Force terminate remote process and its child processes: {script_path}(PID: {
                         process_info.pid})")
                 try:
                     if process_info.remote_monitor_pid_path:
@@ -997,8 +996,8 @@ if __name__ == "__main__":
                     "kill_tree() { local p=$1; if [ -z \"$p\" ] || [ \"$p\" = \"-1\" ]; then return; fi; "
                     "for c in $(pgrep -P $p 2>/dev/null || true); do kill_tree $c; done; "
                     "kill -TERM $p 2>/dev/null || true; }; "
-                    f"kill -TERM -{group_pid} 2>/dev/null || true
-                "
+                    f"kill - TERM - {group_pid} 2 > /dev / null | | true
+                    "
                     f"kill_tree {group_pid}; "
                     f"if [{run_pid} -ne {group_pid} ]; then kill_tree {run_pid}; fi; "
                     "sleep 0.8; "
@@ -1016,8 +1015,8 @@ if __name__ == "__main__":
                         "kill_tree_k() { local p=$1; if [ -z \"$p\" ] || [ \"$p\" = \"-1\" ]; then return; fi; "
                         "for c in $(pgrep -P $p 2>/dev/null || true); do kill_tree_k $c; done; "
                         "kill -KILL $p 2>/dev/null || true; }; "
-                        f"kill -KILL -{group_pid} 2>/dev/null || true
-                    "
+                        f"kill - KILL - {group_pid} 2 > /dev / null | | true
+                        "
                         f"kill_tree_k {group_pid}; "
                         f"if [{run_pid} -ne {group_pid} ]; then kill_tree_k {run_pid}; fi; "
                         "sleep 0.3; "
@@ -1377,7 +1376,7 @@ if __name__ == "__main__":
                                     if self._echo_child_output:
                                         print(
                                             f"\U0001F6CE\ufe0f Trigger {
-                                                'global' if matched_global else 'script'}shutdown_patterns, graceful terminate (PTY): {
+                                                'global' if matched_global else 'script'}shutdown_patterns, graceful terminate(PTY): {
                                                 process_info.script_path}")
                                     self._on_shutdown_pattern_matched(
                                         process_info, script_config, matched_global=matched_global)
