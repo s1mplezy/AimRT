@@ -119,7 +119,7 @@ set(UNIFEX_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 add_subdirectory([[{Path(args.libunifex_source).resolve()}]]
   ${{CMAKE_CURRENT_BINARY_DIR}}/_deps/libunifex-build EXCLUDE_FROM_ALL)
 add_library(unifex::unifex ALIAS unifex)
-list(APPEND CMAKE_MODULE_PATH [[{Path(args.module_dir).resolve()}]])
+list(APPEND CMAKE_MODULE_PATH [[{Path(args.modu l e_dir).resolve()}]])
 set(FASTDDSGEN_EXECUTABLE [[{Path(args.fastddsgen).resolve()}]])
 set(AIMRT_DDS_ENABLE_XTYPES {args.xtypes})
 set_property(GLOBAL PROPERTY AIMRT_DDS_RPC_GEN_COMMAND_PROPERTY [[{Path(args.rpc_generator).resolve()}]])
@@ -150,7 +150,7 @@ target_include_directories(included_graph_consumer PRIVATE
 target_compile_definitions(included_graph_consumer PRIVATE AIMRT_USE_FMT_LIB)
 target_link_libraries(included_graph_consumer PRIVATE
   fastdds fmt::fmt-header-only unifex::unifex)
-""",
+ """,
         encoding="utf-8",
     )
 
@@ -310,9 +310,9 @@ aimrt_add_dds_idl_codegen(
     left_text = str(left_duplicate.resolve())
     right_text = str(right_duplicate.resolve())
     if left_text not in collision_output or right_text not in collision_output:
-        raise AssertionError(f"collision diagnostic omitted canonical paths:\n{collision_output}")
+        raise AssertionError(f"collision diagnostic omitted canonical paths: \n{collision_output}")
     if collision_output.index(left_text) > collision_output.index(right_text):
-        raise AssertionError(f"collision diagnostic paths are not sorted:\n{collision_output}")
+        raise AssertionError(f"collision diagnostic paths are not sorted: \n{collision_output}")
 
     atomic_project = work_dir / "atomic-project"
     atomic_project.mkdir()
@@ -338,7 +338,8 @@ list(APPEND CMAKE_MODULE_PATH [[{Path(args.module_dir).resolve()}]])
 set(FASTDDSGEN_EXECUTABLE [[{Path(args.fastddsgen).resolve()}]])
 set(AIMRT_DDS_ENABLE_XTYPES {args.xtypes})
 set_property(GLOBAL PROPERTY AIMRT_DDS_RPC_GEN_COMMAND_PROPERTY [[{
-        Path(sys.executable).resolve()};{failing_generator.resolve()}]])
+        Path(sys.executable).resolve()}
+    {failing_generator.resolve()}]])
 include(FastDdsGenCode)
 aimrt_add_dds_idl_codegen(TARGET_NAME rejected_codegen IDL_FILES Rejected.idl)
 """, encoding="utf-8", )

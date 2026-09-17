@@ -101,7 +101,7 @@ def _validate(unit: TranslationUnit) -> None:
                 raise IdlDiagnostic(
                     E_OVERLOAD,
                     f"operation overload is not supported: {
-                        interface.fqn}::{
+                        interface.fqn}: : {
                         operation.name}",
                     operation.location)
             method_names.add(operation.name)
@@ -109,28 +109,28 @@ def _validate(unit: TranslationUnit) -> None:
                 raise IdlDiagnostic(
                     E_RAISES,
                     f"raises clauses are not supported: {
-                        interface.fqn}::{
+                        interface.fqn}: : {
                         operation.name}",
                     operation.location)
             if operation.response_type.spelling == "void":
                 raise IdlDiagnostic(
                     E_VOID,
                     f"void response is not supported: {
-                        interface.fqn}::{
+                        interface.fqn}: : {
                         operation.name}",
                     operation.response_type.location)
             if not operation.parameters:
                 raise IdlDiagnostic(
                     E_ZERO_PARAMS,
                     f"operation requires exactly one parameter: {
-                        interface.fqn}::{
+                        interface.fqn}: : {
                         operation.name}",
                     operation.location)
             if len(operation.parameters) > 1:
                 raise IdlDiagnostic(
                     E_MULTI_PARAMS,
                     f"operation requires exactly one parameter: {
-                        interface.fqn}::{
+                        interface.fqn}: : {
                         operation.name}",
                     operation.parameters[1].location)
             parameter = operation.parameters[0]
@@ -138,7 +138,7 @@ def _validate(unit: TranslationUnit) -> None:
                 raise IdlDiagnostic(
                     E_DIRECTION,
                     f"only an 'in' parameter is supported: {
-                        interface.fqn}::{
+                        interface.fqn}: : {
                         operation.name}",
                     parameter.location)
             if _resolve_struct(operation.response_type, interface.scope, structs) is None:

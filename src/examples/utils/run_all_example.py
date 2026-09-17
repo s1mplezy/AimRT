@@ -73,7 +73,7 @@ class ExampleRunner:
 
         percent = progress * 100
 
-        return f"{BRIGHT_GREEN}{percent:.1f}% [{bar}]{RESET}"
+        return f"{BRIGHT_GREEN}{percent: .1f}% [{bar}]{RESET}"
 
     def parse_args(self):
         parser = argparse.ArgumentParser(description="Run Python tests")
@@ -103,17 +103,15 @@ class ExampleRunner:
    | |  __/\\__ \\ |_  |  _ <  __/ |_) | (_) | |  | |_ _
    |_|\\___||___/\\__| |_| \\_\\___| .__/ \\___/|_|   \\__(_)
                                |_|
-{RESET}
-{YELLOW}{BOLD}► Overall Result:{RESET}
-{WHITE}{'Total tests:':┈<{width}}{CYAN}{total_tests}
-{GREEN}{'Successful tests:':┈<{width - 4}}{successful_tests}
-{RED}{'Failed tests:':┈<{width - 4}}{not_found_tests + exit_failed_tests + forbidden_tests}
-    {YELLOW}{'• Expected Output Not Found:':┈<{width - 12}}{not_found_tests}
-    {MAGENTA}{'• Forbidden Output Found:':┈<{width - 12}}{forbidden_tests}
-    {RED}{'• Exit String Not Found:':┈<{width - 12}}{exit_failed_tests}
-{BLUE}{'Not run tests:':┈<{width - 4}}{not_run_tests}
+ {R E SE T} {YEL LOW}{BOLD}► Overall Result: {RESET} {WHITE}{'Total tests:': ┈<{width}}{CYAN}{total_tests}
+{GREEN}{'Successful tests:': ┈<{width - 4}}{successful_tests}
+{RED}{'Failed tests:': ┈<{width - 4}}{not_found_tests + exit_failed_tests + forbidden_tests}
+    {YELLOW}{'• Expected Output Not Found:': ┈<{width - 12}}{not_found_tests}
+    {MAGENTA}{'• Forbidden Output Found:': ┈<{width - 12}}{forbidden_tests}
+    {RED}{'• Exit String Not Found:': ┈<{width - 12}}{exit_failed_tests}
+{BLUE}{'Not run tests:': ┈<{width - 4}}{not_run_tests}
 
-{YELLOW}{BOLD}► Detailed Results:{RESET}
+{YELLOW}{BOLD}► Detailed Results: {RESET}
 """
         for test_name, result in test_results.items():
             if result == TestResult.SUCCESS:
@@ -126,14 +124,14 @@ class ExampleRunner:
                 status = f"{RED}☹ Exit String Not Found{RESET}"
             else:  # result is None
                 status = f"{BLUE}- Not Run{RESET}"
-            report += f"    {CYAN}•{RESET} {test_name:<65} {status}\n"
+            report += f"    {CYAN}•{RESET} {test_name: <65} {status}\n"
 
         success_rate = (
             (successful_tests / (total_tests - not_run_tests)) * 100 if (total_tests - not_run_tests) > 0 else 0
         )
         overall_success_rate = (successful_tests / total_tests) * 100 if total_tests > 0 else 0
-        report += f"\n{YELLOW} Success Rate (excluding not run): {WHITE}{success_rate:.2f}%{RESET}"
-        report += f"\n{YELLOW} Overall Success Rate: {WHITE}{overall_success_rate:.2f}%{RESET}"
+        report += f"\n{YELLOW} Success Rate (excluding not run): {WHITE}{success_rate: .2f}%{RESET}"
+        report += f"\n{YELLOW} Overall Success Rate: {WHITE}{overall_success_rate: .2f}%{RESET}"
 
         return report
 
@@ -297,7 +295,7 @@ class ExampleRunner:
             script_path, log_content = output_queue.get()
             result_dict[script_path] = log_content
             if self.args.print_output:
-                print(f"\n{CYAN}{BOLD}Output of {script_path}:{RESET}\n{log_content}")
+                print(f"\n{CYAN}{BOLD}Output of {script_path}: {RESET}\n{log_content}")
         for script_path, log_content in result_dict.items():
             idx = self.find_element_index(item["script_path"], script_path)
             self.item_results[script_path] = self.check_result(
@@ -351,7 +349,8 @@ class ExampleRunner:
         print(report)
 
         # calculate total running time
-        print(f"\n{YELLOW}{BOLD}Test all examples finished, consuming {time.time() - self.test_start_time:.2f}s{RESET}")
+        print(f"\n{YELLOW}{BOLD}Test all examples finished, consuming {
+              time.time() - self.test_start_time: .2f}s{RESET}")
 
 
 if __name__ == "__main__":

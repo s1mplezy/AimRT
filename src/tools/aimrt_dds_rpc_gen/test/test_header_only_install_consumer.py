@@ -143,7 +143,7 @@ add_library(ros2_plugin_proto::ros2_plugin_proto__rosidl_generator_cpp INTERFACE
 add_library(ros2_plugin_proto::ros2_plugin_proto__rosidl_typesupport_cpp INTERFACE IMPORTED)
 add_library(ros2_plugin_proto::ros2_plugin_proto__rosidl_typesupport_fastrtps_cpp INTERFACE IMPORTED)
 add_library(ros2_plugin_proto::ros2_plugin_proto__rosidl_typesupport_introspection_cpp INTERFACE IMPORTED)
-include([[{prefix / 'lib/cmake/aimrt/aimrt-config.cmake'}]])
+ include([[{prefix / 'lib/cmake/aimrt/aimrt-config.cmake'}]])
 add_executable(public_header_consumer
   main.cc
   generated/detail/PublicHeader/PublicHeaderPubSubTypes.cxx
@@ -156,7 +156,7 @@ target_link_libraries(
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   target_link_options(public_header_consumer PRIVATE --coverage)
 endif()
-""",
+ """,
         encoding="utf-8",
     )
 

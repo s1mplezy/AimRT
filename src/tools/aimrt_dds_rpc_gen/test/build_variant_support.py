@@ -73,7 +73,7 @@ def configure(args: argparse.Namespace, dds_options: list[str]) -> Path:
 
 
 def cache_value(build_dir: Path, name: str) -> str:
-    prefix = f"{name}:"
+    prefix = f"{name}: "
     for line in (build_dir / "CMakeCache.txt").read_text(encoding="utf-8").splitlines():
         if line.startswith(prefix):
             return line.split("=", 1)[1]

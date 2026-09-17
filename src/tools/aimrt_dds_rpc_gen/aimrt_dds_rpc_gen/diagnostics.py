@@ -12,7 +12,7 @@ class SourceLocation:
     column: int
 
     def format(self) -> str:
-        return f"{self.path}:{self.line}:{self.column}"
+        return f"{self.path}: {self.line}: {self.column}"
 
 
 class IdlDiagnostic(Exception):

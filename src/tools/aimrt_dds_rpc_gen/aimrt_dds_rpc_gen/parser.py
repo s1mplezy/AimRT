@@ -131,7 +131,7 @@ class Parser:
             element = self._parse_type()
             spelling = f"sequence<{element.spelling}"
             if self._match(","):
-                spelling += f",{self._parse_positive_bound('sequence')}"
+                spelling += f", {self._parse_positive_bound('sequence')}"
             self._expect(">")
             return TypeRef(spelling + ">", start.location)
 
@@ -143,9 +143,9 @@ class Parser:
             if self._peek().value in {",", ">"}:
                 raise IdlDiagnostic(E_SYNTAX, "map requires a value type", self._peek().location)
             value = self._parse_type()
-            spelling = f"map<{key.spelling},{value.spelling}"
+            spelling = f"map<{key.spelling}, {value.spelling}"
             if self._match(","):
-                spelling += f",{self._parse_positive_bound('map')}"
+                spelling += f", {self._parse_positive_bound('map')}"
             self._expect(">")
             return TypeRef(spelling + ">", start.location)
 
@@ -156,7 +156,7 @@ class Parser:
             raise IdlDiagnostic(E_SYNTAX, "expected non-negative scale for fixed", scale.location)
         self._advance()
         self._expect(">")
-        return TypeRef(f"fixed<{digits},{scale.value}>", start.location)
+        return TypeRef(f"fixed<{digits}, {scale.value}>", start.location)
 
     def _skip_declaration_to_semicolon(self) -> None:
         groups = {"(": ")", "[": "]", "{": "}", "<": ">"}

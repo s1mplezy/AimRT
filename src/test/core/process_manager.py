@@ -126,9 +126,10 @@ class ProcessManager:
                 "kill_tree() { local p=$1; if [ -z \"$p\" ] || [ \"$p\" = \"-1\" ]; then return; fi; "
                 "for c in $(pgrep -P $p 2>/dev/null || true); do kill_tree $c; done; "
                 "kill -TERM $p 2>/dev/null || true; }; "
-                f"kill -TERM -{group_pid} 2>/dev/null || true; "
+                f"kill -TERM -{group_pid} 2>/dev/null || true
+            "
                 f"kill_tree {group_pid}; "
-                f"if [ {run_pid} -ne {group_pid} ]; then kill_tree {run_pid}; fi; "
+                f"if [{run_pid} -ne {group_pid} ]; then kill_tree {run_pid}; fi; "
                 "sleep 0.5; "
                 "'"
             )
@@ -142,7 +143,7 @@ class ProcessManager:
         self._global_shutdown_initiated.set()
         try:
             if grace_sec and grace_sec > 0:
-                print(f"🛎️ Trigger global shutdown, wait for {grace_sec:.1f}s grace period...")
+                print(f"🛎️ Trigger global shutdown, wait for {grace_sec: .1f}s grace period...")
                 time.sleep(min(grace_sec, 60.0))
         except Exception:
             pass
@@ -192,7 +193,8 @@ class ProcessManager:
         try:
             remote_python = "python3"
             chk = conn.run(
-                f"{remote_python} -c 'import psutil,sys; sys.stdout.write(psutil.__version__)'",
+                f"{remote_python} -c 'import psutil,sys
+            sys.stdout.write(psutil.__version__)'",
                 hide=True,
                 warn=True,
                 in_stream=False)
@@ -388,7 +390,7 @@ if __name__ == "__main__":
         user = (script_config.host_profile.ssh_user or "").strip() or None
         host = (script_config.host_profile.host or "").strip()
         port = int(getattr(script_config.host_profile, 'ssh_port', 22) or 22)
-        return f"{user or ''}@{host}:{port}"
+        return f"{user or ''}@{host}: {port}"
 
     def _get_fabric_connection(self, script_config: ScriptConfig) -> Connection:
 
@@ -544,7 +546,8 @@ if __name__ == "__main__":
 
                 remote_env = dict(script_config.environment or {})
                 remote_env.update(script_config.remote_env or {})
-                env_exports = " ".join([f'export {k}="{v}";' for k, v in remote_env.items()])
+                env_exports = " ".join([f'export {k}="{v}"
+                ' for k, v in remote_env.items()])
                 joined_cmd = " ".join(cmd)
                 main_script_path = script_config.path
 
@@ -556,18 +559,19 @@ if __name__ == "__main__":
 
                 remote_shell_cmd = (
                     f"mkdir -p {remote_dir} && cd {remote_cwd} && "
-                    f"if [ ! -d {remote_cwd} ]; then echo 'Remote cwd not exists: {remote_cwd}' > {stderr_path}; exit 1; fi; "
+                    f"if [ ! -d {remote_cwd} ]
+                then echo 'Remote cwd not exists: {remote_cwd}' > {stderr_path}; exit 1; fi; "
                     f"nohup setsid bash -lc '"
                     f"source /etc/profile >/dev/null 2>&1; "
-                    f"[ -f ~/.bashrc ] && source ~/.bashrc >/dev/null 2>&1; "
-                    f"[ -f ~/.profile ] && source ~/.profile >/dev/null 2>&1; "
+                    f"[-f ~/.bashrc ] && source ~/.bashrc >/dev/null 2>&1; "
+                    f"[-f ~/.profile ] && source ~/.profile >/dev/null 2>&1; "
                     f"{env_exports} "
                     f"printenv | sort > {remote_dir}/env.log; "
-                    f"if [ -f {main_script_path} ]; then chmod +x {main_script_path} || true; fi; "
+                    f"if [-f {main_script_path} ]; then chmod +x {main_script_path} || true; fi; "
                     f"({joined_cmd}) & child=$!; echo $child > {run_pid_path}; wait $child; code=$?; echo $code > {exit_path}"
                     f"' > {stdout_path} 2> {stderr_path} < /dev/null & echo $! > {pid_path}")
                 port = int(getattr(script_config.host_profile, 'ssh_port', 22) or 22)
-                print(f"🌐 Remote execution: {script_config.host_profile.host}:{port}")
+                print(f"🌐 Remote execution: {script_config.host_profile.host}: {port}")
                 print(f"    Remote working directory: {remote_cwd}")
                 if remote_env:
                     print(f"    Remote environment variables: {remote_env}")
@@ -993,9 +997,10 @@ if __name__ == "__main__":
                     "kill_tree() { local p=$1; if [ -z \"$p\" ] || [ \"$p\" = \"-1\" ]; then return; fi; "
                     "for c in $(pgrep -P $p 2>/dev/null || true); do kill_tree $c; done; "
                     "kill -TERM $p 2>/dev/null || true; }; "
-                    f"kill -TERM -{group_pid} 2>/dev/null || true; "
+                    f"kill -TERM -{group_pid} 2>/dev/null || true
+                "
                     f"kill_tree {group_pid}; "
-                    f"if [ {run_pid} -ne {group_pid} ]; then kill_tree {run_pid}; fi; "
+                    f"if [{run_pid} -ne {group_pid} ]; then kill_tree {run_pid}; fi; "
                     "sleep 0.8; "
                     "'"
                 )
@@ -1011,9 +1016,10 @@ if __name__ == "__main__":
                         "kill_tree_k() { local p=$1; if [ -z \"$p\" ] || [ \"$p\" = \"-1\" ]; then return; fi; "
                         "for c in $(pgrep -P $p 2>/dev/null || true); do kill_tree_k $c; done; "
                         "kill -KILL $p 2>/dev/null || true; }; "
-                        f"kill -KILL -{group_pid} 2>/dev/null || true; "
+                        f"kill -KILL -{group_pid} 2>/dev/null || true
+                    "
                         f"kill_tree_k {group_pid}; "
-                        f"if [ {run_pid} -ne {group_pid} ]; then kill_tree_k {run_pid}; fi; "
+                        f"if [{run_pid} -ne {group_pid} ]; then kill_tree_k {run_pid}; fi; "
                         "sleep 0.3; "
                         "'"
                     )

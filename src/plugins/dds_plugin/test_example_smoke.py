@@ -89,7 +89,7 @@ def main() -> None:
         )
         time.sleep(1.0)
         if processes[0].poll() is not None:
-            raise AssertionError(f"server exited early:\n{logs['server'].read_text(encoding='utf-8')}")
+            raise AssertionError(f"server exited early: \n{logs['server'].read_text(encoding='utf-8')}")
 
         client_log = logs["client"].open("w", encoding="utf-8")
         streams.append(client_log)
@@ -112,7 +112,7 @@ def main() -> None:
             for name, process in zip(("server", "client"), processes):
                 if process.poll() is not None:
                     raise AssertionError(
-                        f"{name} exited before the business assertion:\n"
+                        f"{name} exited before the business assertion: \n"
                         f"{logs[name].read_text(encoding='utf-8')}"
                     )
             if args.expect_text in expected_log.read_text(encoding="utf-8"):
@@ -122,8 +122,8 @@ def main() -> None:
         if not succeeded:
             raise AssertionError(
                 f"internal watchdog expired without {args.expect_text!r}\n"
-                f"server log:\n{logs['server'].read_text(encoding='utf-8')}\n"
-                f"client log:\n{logs['client'].read_text(encoding='utf-8')}"
+                f"server log: \n{logs['server'].read_text(encoding='utf-8')}\n"
+                f"client log: \n{logs['client'].read_text(encoding='utf-8')}"
             )
     finally:
         terminate_and_reap(processes)

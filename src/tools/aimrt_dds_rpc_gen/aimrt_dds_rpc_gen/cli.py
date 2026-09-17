@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     arguments = build_argument_parser().parse_args(argv)
     idl_path = Path(arguments.idl)
     if not idl_path.is_absolute():
-        print(f"{idl_path}:1:1: AIMRT_DDS_IDL_E011_INCLUDE: --idl must be an absolute path", file=sys.stderr)
+        print(f"{idl_path}: 1: 1: AIMRT_DDS_IDL_E011_INCLUDE: --idl must be an absolute path", file=sys.stderr)
         return 4
     try:
         unit = load_idl(str(idl_path), arguments.include_dir)
@@ -92,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
         print(error, file=sys.stderr)
         return 2
     except (OSError, UnicodeError) as error:
-        print(f"{idl_path}:1:1: AIMRT_DDS_IDL_E011_INCLUDE: {error}", file=sys.stderr)
+        print(f"{idl_path}: 1: 1: AIMRT_DDS_IDL_E011_INCLUDE: {error}", file=sys.stderr)
         return 4
     return 0
 

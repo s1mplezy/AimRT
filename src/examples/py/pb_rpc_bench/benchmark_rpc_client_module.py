@@ -201,7 +201,7 @@ class BenchmarkRpcClientModule(aimrt_py.ModuleBase):
         p99_latency = self.perf_data[int(correct_count * 0.99)]
         p999_latency = self.perf_data[int(correct_count * 0.999)]
 
-        result_str = f"Benchmark plan {plan_id} completed, report:"
+        result_str = f"Benchmark plan {plan_id} completed, report: "
         if plan['perf_mode'] == 'fixed-freq':
             result_str += f"\nfreq: {plan['freq']}"
         result_str += f"\nmode: {plan['perf_mode']}"
@@ -209,17 +209,17 @@ class BenchmarkRpcClientModule(aimrt_py.ModuleBase):
         result_str += f"\nparallel: {plan['parallel']}"
         result_str += f"\nmsg count per co: {plan['msg_count']}"
         result_str += f"\ntotal count: {total_count}"
-        result_str += f"\ntotal time: {total_time_ms:.2f} ms"
+        result_str += f"\ntotal time: {total_time_ms: .2f} ms"
         result_str += f"\ncorrect count: {correct_count}"
-        result_str += f"\nerror rate: {error_rate:.2f} %"
+        result_str += f"\nerror rate: {error_rate: .2f} %"
         if plan['perf_mode'] == 'bench':
-            result_str += f"\nqps: {qps:.2f}"
-        result_str += f"\nmin latency: {min_latency:.2f} us"
-        result_str += f"\nmax latency: {max_latency:.2f} us"
-        result_str += f"\navg latency: {avg_latency:.2f} us"
-        result_str += f"\np90 latency: {p90_latency:.2f} us"
-        result_str += f"\np99 latency: {p99_latency:.2f} us"
-        result_str += f"\np999 latency: {p999_latency:.2f} us\n"
+            result_str += f"\nqps: {qps: .2f}"
+        result_str += f"\nmin latency: {min_latency: .2f} us"
+        result_str += f"\nmax latency: {max_latency: .2f} us"
+        result_str += f"\navg latency: {avg_latency: .2f} us"
+        result_str += f"\np90 latency: {p90_latency: .2f} us"
+        result_str += f"\np99 latency: {p99_latency: .2f} us"
+        result_str += f"\np999 latency: {p999_latency: .2f} us\n"
         aimrt_py.info(self.logger, result_str)
 
     def StartBenchPlan(self, plan: dict) -> None:

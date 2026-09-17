@@ -132,7 +132,7 @@ add_library(ros2_plugin_proto::ros2_plugin_proto__rosidl_generator_cpp INTERFACE
 add_library(ros2_plugin_proto::ros2_plugin_proto__rosidl_typesupport_cpp INTERFACE IMPORTED)
 add_library(ros2_plugin_proto::ros2_plugin_proto__rosidl_typesupport_fastrtps_cpp INTERFACE IMPORTED)
 add_library(ros2_plugin_proto::ros2_plugin_proto__rosidl_typesupport_introspection_cpp INTERFACE IMPORTED)
-include([[{prefix / 'lib/cmake/aimrt/aimrt-config.cmake'}]])
+ include([[{prefix / 'lib/cmake/aimrt/aimrt-config.cmake'}]])
 list(APPEND CMAKE_MODULE_PATH [[{prefix / 'cmake'}]])
 set(CMAKE_PROGRAM_PATH [[{prefix / 'bin'}]])
 if(NOT FASTDDSGEN_EXECUTABLE)
@@ -146,7 +146,7 @@ target_link_options(installed_consumer PRIVATE --coverage)
 aimrt_add_dds_idl_codegen(
   TARGET_NAME installed_consumer_codegen
   IDL_FILES Example.idl
-  INCLUDE_DIRS ${{CMAKE_CURRENT_SOURCE_DIR}}
+ INCLUDE_DIRS ${{CMAKE_CURRENT_SOURCE_DIR}}
   OUTPUT_DIR ${{CMAKE_CURRENT_BINARY_DIR}}/generated
   ATTACH_TO_TARGET installed_consumer)
 add_executable(bare_native_header_probe EXCLUDE_FROM_ALL bare_native_header_probe.cc)
@@ -234,11 +234,11 @@ aimrt_add_dds_idl_codegen(
     right_text = str(right_duplicate.resolve())
     if left_text not in collision_output or right_text not in collision_output:
         raise AssertionError(
-            f"installed helper collision diagnostic omitted canonical paths:\n{collision_output}"
+            f"installed helper collision diagnostic omitted canonical paths: \n{collision_output}"
         )
     if collision_output.index(left_text) > collision_output.index(right_text):
         raise AssertionError(
-            f"installed helper collision diagnostic paths are not sorted:\n{collision_output}"
+            f"installed helper collision diagnostic paths are not sorted: \n{collision_output}"
         )
 
     wrong_generator = work / "fastddsgen-4.3.1"

@@ -161,7 +161,7 @@ class BenchmarkSubscriber(aimrt_py.ModuleBase):
         loss_rate = (send_count - recv_count) / send_count * 100
         avg_latency = sum(latency_vec) / recv_count
 
-        result_str = f"Benchmark plan {self.cur_bench_plan.bench_plan_id} completed, report:"
+        result_str = f"Benchmark plan {self.cur_bench_plan.bench_plan_id} completed, report: "
         result_str += f"\nmode: {self.cur_bench_plan.mode}"
         result_str += f"\nfrequency: {self.cur_bench_plan.send_frequency} hz"
         result_str += f"\ntopic number: {self.cur_bench_plan.topic_number}"
@@ -170,12 +170,12 @@ class BenchmarkSubscriber(aimrt_py.ModuleBase):
         result_str += f"\nmsg count per topic: {self.cur_bench_plan.send_num}"
         result_str += f"\nsend count: {send_count}"
         result_str += f"\nrecv count: {recv_count}"
-        result_str += f"\nloss rate: {loss_rate:.2f} % "
-        result_str += f"\nmin latency: {min_latency:.3f} us"
-        result_str += f"\nmax latency: {max_latency:.3f} us"
-        result_str += f"\navg latency: {avg_latency:.3f} us"
-        result_str += f"\np90 latency: {p90_latency:.3f} us"
-        result_str += f"\np99 latency: {p99_latency:.3f} us"
-        result_str += f"\np999 latency: {p999_latency:.3f} us\n"
+        result_str += f"\nloss rate: {loss_rate: .2f} % "
+        result_str += f"\nmin latency: {min_latency: .3f} us"
+        result_str += f"\nmax latency: {max_latency: .3f} us"
+        result_str += f"\navg latency: {avg_latency: .3f} us"
+        result_str += f"\np90 latency: {p90_latency: .3f} us"
+        result_str += f"\np99 latency: {p99_latency: .3f} us"
+        result_str += f"\np999 latency: {p999_latency: .3f} us\n"
 
         aimrt_py.info(self.logger, result_str)

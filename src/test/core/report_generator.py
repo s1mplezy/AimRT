@@ -433,80 +433,28 @@ class ReportGenerator:
                 monitor = ResourceMonitor()
                 resource_report = monitor.generate_report(process_info.monitor_data)
 
-                resource_html = f"""
-                <div class="resource-grid">
+                resource_html = f""" <div class="resource-grid">
                     <div class="resource-item">
                         <div class="resource-title">💻 CPU Usage</div>
                         <div class="resource-value">
-                            Avg: {resource_report['cpu']['avg_percent']:.1f}%<br>
-                            Max: {resource_report['cpu']['max_percent']:.1f}%<br>
-                            Final: {resource_report['cpu']['final_percent']:.1f}%
-                        </div>
-                    </div>
-                    <div class="resource-item">
-                        <div class="resource-title">🧠 Memory</div>
+ A vg: {resource_report['cpu']['avg_percent']: .1f}%<br>                             Max: {resource_report['cpu']['max_percent']: . 1 f }%<br> Final: {resource _report['cpu']['fin al _ percent']: .1f}% </div> < /div>                     <div class="resource-item"> <div class="resource-title">🧠 Memory</div>
                         <div class="resource-value">
-                            Avg: {resource_report['memory']['avg_rss_mb']:.1f}MB<br>
-                            Max: {resource_report['memory']['max_rss_mb']:.1f}MB<br>
-                            Percent: {resource_report['memory']['avg_percent']:.1f}%
-                        </div>
-                    </div>
+ Avg: {resource_report['memory'][' avg_rss_mb']: .1f}MB<br> Max: {resource_report['memory'][' max_rss_mb']: .1f}MB<br> Percent: {resource_report['memory']['avg_percent']: .1f}%                         </div>                     </div>
                     <div class="resource-item">
                         <div class="resource-title">💾 Disk I/O</div>
                         <div class="resource-value">
-                            Read: {resource_report['disk']['total_read_mb']:.2f}MB<br>
-                            Write: {resource_report['disk']['total_write_mb']:.2f}MB<br>
-                            Read speed: {resource_report['disk']['avg_read_mb_per_sec']:.2f}MB/s
-                        </div>
-                    </div>
+ Read: {resource_report['disk']['total_read_mb']: . 2 f}MB<br> Write: {resource_rep o rt['disk']['total_write_mb ']: .2f}MB<br>                             Read speed: {resource_report['disk']['avg_read_mb_per_sec']: .2f}MB/s                         </div>                     </div>
                 </div>
-                """
-            else:
-                resource_html = "<p>⚠️ No resource monitoring data</p>"
-
-            duration = (
-                (process_info.end_time - process_info.start_time).total_seconds()
-                if process_info.end_time else 0
+ """ else: re s ou r ce_html = "<p> ⚠️ No resou r ce monitoring data</ p > " duration = ((process_info.e n d _ t ime - process_info.star t_tim e).total_seconds() if proce ss_info.end_time else 0
             )
 
             # Escape logs safely to avoid breaking HTML
             stdout_html = escape(process_info.stdout or "")
             stderr_html = escape(process_info.stderr or "")
 
-            process_card = f"""
-            <div class="process-card">
+            process_card = f""" <div class="process-card">
                 <div class="process-header" onclick="toggleDetails(this)">
-                    <span class="process-title">{script_path}</span>
-                    <span class="process-status {status_class}">{process_info.status}</span>
-                    <span class="toggle-icon">▼</span>
-                </div>
-                <div class="process-details">
-                    <p><strong>PID:</strong> {process_info.pid}</p>
-                    <p><strong>Exit code:</strong> {process_info.exit_code}</p>
-                    <p><strong>Duration:</strong> {duration:.2f}s</p>
-                    <p><strong>Start time:</strong> {process_info.start_time.strftime('%Y-%m-%d %H:%M:%S')}</p>
-                    <p><strong>End time:</strong> {process_info.end_time.strftime('%Y-%m-%d %H:%M:%S') if process_info.end_time else 'N/A'}
-                                                                                                                                          </p>
-
-                    <h4>📈 Resource Usage</h4>
-                    {resource_html}
-
-                    {("<h4>📤 Stdout</h4><pre class='log-block'>" + stdout_html + "</pre>") if stdout_html.strip() else ""}
-                    {("<h4>📥 Stderr</h4><pre class='log-block'>" + stderr_html + "</pre>") if stderr_html.strip() else ""}
-                </div>
-            </div>
-            """
-            process_cards_html += process_card
-
-        callback_cards_html = ""
-        if callback_results:
-            for cb_name, results in callback_results.items():
-                items_html = ""
-                for r in results:
-                    status_cls = "ok" if r.success else "fail"
-                    msg = escape(r.message or "")
-                    data = escape(str(getattr(r, 'data', {})))
-                    warn = escape("; ".join(getattr(r, 'warnings', []) or []))
+ <span class="process-title">{script_path}</span>                     <span class="process-status {status_class}">{process_in fo.status}</span> <span class="toggle-icon">▼< /span>                 </div>                 <div class="process-details">  <p ><strong>PID: </strong> {process_info.pid}</p>                     <p><strong>Exit code: </strong> {process_info.exit_code}</p>                     <p><strong>Duration: </strong> {duration: .2f}s</p>                     <p><strong>Start time: </strong> {process_info.start_time.strftime('%Y-%m-%d %H:%M:%S')}</p>                     <p><strong>End time: </strong> {process_info.end_time.strftime('%Y-%m-%d %H:% M:%S') if process_info.en d_time else 'N/A'} </p> <h4>📈 Resource Usage</h4>  {resource_html}                     {("<h4>📤 Stdout</h4><pre class='log-block'>" + stdout_h t ml + "</pre>") if stdout_html.strip() else ""}                     {("<h4>📥 Stderr</h4><pre class='log-block'>" + stderr_html + "< /pre>") if stderr_html.strip() else ""} </div>             </div>  """             process_cards_h tml += process_card         callb ack_cards_html = "" if callback _results: for cb_n ame, results in callback_results.items(): i tems_html = "" for r in results: status_cls = "ok" if r.success else "fail"                     msg = escape(r.me ssage or "")                     data = escape(str(getattr(r, 'data', {}))) warn = escape("; ".join(getattr(r, 'warnings', []) or []))
                     err = escape("; ".join(getattr(r, 'errors', []) or []))
                     items_html += f"<div class='callback-item'><div class='callback-title {status_cls}'>[{
                         status_cls.upper()}] {msg}</div>" f"<div>data: {data}</div>" f"<div>warnings: {warn}</div>" f"<div>errors: {err}</div></div>"
@@ -522,41 +470,15 @@ class ReportGenerator:
                 # 失败统计包含 failed + error，更贴近用例失败的总数
                 p_failed = int(ps.get("failed", 0) or 0) + int(ps.get("error", 0) or 0)
                 p_rate = float(ps.get("success_rate", 0.0) or 0.0)
-                pytest_stat_cards = f"""
-                <div class="stat-card">
-                    <div class="stat-value">{p_total}</div>
-                    <div class="stat-label">Pytest total</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">{p_pass}</div>
-                    <div class="stat-label">Pytest passed</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">{p_failed}</div>
-                    <div class="stat-label">Pytest failed</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value">{p_rate:.1f}%</div>
-                    <div class="stat-label">Pytest success rate</div>
-                </div>
-                """
-        except Exception:
-            pytest_stat_cards = ""
-
-        # Fill template
-        summary = summary_data["summary"]
-        # Note: pytest_section_html is currently not embedded; reserved for future use.
-        return html_template.format(
-            test_name=test_name,
-            timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            total_processes=summary["total_processes"],
-            completed=summary["completed"],
-            failed=summary["failed"],
-            success_rate=summary["success_rate"],
-            total_duration=summary["total_duration_seconds"],
-            process_cards=process_cards_html,
-            callback_cards=callback_cards_html,
-            pytest_stat_cards=pytest_stat_cards
+                pytest_stat_cards = f""" <div class="stat-card">
+                    <div class="stat-value">{p_total}</div>                     <div class="stat-label">Pytest total</div>                 </div>                 <div class="stat-card">  <div class="stat-va lue">{p_pass}</div> <div class="stat-label">Pytest passed</div>                 </div>                 <div class="stat-card">  <div class="stat-valu e ">{p_failed}</div> <di v class="stat-label">Pytest failed</div>                 </div>                 <div class="stat-card">  <div class="stat-value">{p_rate: .1f}%</div> <div class="stat-label">Pytest success rate</div>                 </div>  """ except Exception: pytest_stat_cards = ""         # Fill template         summary = summary_data["summary"]         # Note: pytest_section_html is currently not embedded; r eserved for future use.         return html_template.format(             test_name = test_name,             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S'),             total_processes = summary["total_processes"],
+            completed = summary["completed"],
+            failed = summary["failed"],
+            success_rate = summary["success_rate"],
+            total_duration = summary["total_duration_seconds"],
+            process_cards = process_cards_html,
+            callback_cards = callback_cards_html,
+            pytest_stat_cards = pytest_stat_cards
         )
 
     def generate_all_reports(self, test_name: str,
@@ -570,16 +492,16 @@ class ReportGenerator:
         Returns:
             Dict[str, str]: mapping of format to output file path
         """
-        reports = {}
+        reports={}
 
         try:
-            reports["json"] = self.generate_json_report(
+            reports["json"]=self.generate_json_report(
                 test_name, execution_results, summary_data, pytest_results, callback_results)
         except Exception as e:
             print(f"❌ Failed to generate JSON report: {e}")
 
         try:
-            reports["html"] = self.generate_html_report(
+            reports["html"]=self.generate_html_report(
                 test_name, execution_results, summary_data, callback_results, pytest_results)
         except Exception as e:
             print(f"❌ Failed to generate HTML report: {e}")
@@ -587,9 +509,9 @@ class ReportGenerator:
         return reports
 
     def _generate_index_html(self):
-        idx = self._load_index()
-        entries = idx.get("entries", [])
-        entries = list(reversed(entries))
+        idx=self._load_index()
+        entries=idx.get("entries", [])
+        entries=list(reversed(entries))
 
         # Build multi-level tree: group by source YAML path
         from pathlib import Path as _P
@@ -598,90 +520,90 @@ class ReportGenerator:
             if not yaml_path:
                 return []
             try:
-                repo_root = _P(__file__).resolve().parents[2]
-                rel = _P(yaml_path)
+                repo_root=_P(__file__).resolve().parents[2]
+                rel=_P(yaml_path)
                 try:
-                    rel = rel.relative_to(repo_root)
+                    rel=rel.relative_to(repo_root)
                 except Exception:
                     pass
-                parts = list(rel.parts)
+                parts=list(rel.parts)
             except Exception:
                 try:
-                    parts = list(_P(yaml_path).parts)
+                    parts=list(_P(yaml_path).parts)
                 except Exception:
-                    parts = []
+                    parts=[]
             if parts and parts[-1].lower().endswith(('.yaml', '.yml')):
-                parts = parts[:-1]
+                parts=parts[:-1]
             return parts
 
         # Organize into nested dict; leaf nodes hold entry lists
-        tree: dict = {}
-        uncategorized: list = []
+        tree: dict={}
+        uncategorized: list=[]
         for e in entries:
-            meta = e.get('meta', {}) or {}
-            yaml_path = meta.get('source_yaml_path', '') or ''
-            parts = _split_group_parts(yaml_path)
+            meta=e.get('meta', {}) or {}
+            yaml_path=meta.get('source_yaml_path', '') or ''
+            parts=_split_group_parts(yaml_path)
             if parts:
-                node = tree
+                node=tree
                 for p in parts:
-                    node = node.setdefault(p, {})
+                    node=node.setdefault(p, {})
                 node.setdefault('_items', []).append(e)
             else:
                 uncategorized.append(e)
 
         def _render_card(e) -> list[str]:
-            s = e.get("summary", {})
-            total = s.get("total_processes", 0)
-            completed = s.get("completed", 0)
-            failed = s.get("failed", 0)
-            killed = s.get("killed", 0)
-            timeout = s.get("timeout", 0)
-            rate = s.get("success_rate", 0)
+            s=e.get("summary", {})
+            total=s.get("total_processes", 0)
+            completed=s.get("completed", 0)
+            failed=s.get("failed", 0)
+            killed=s.get("killed", 0)
+            timeout=s.get("timeout", 0)
+            rate=s.get("success_rate", 0)
             # Color rule combines execution summary and pytest results:
             # - fail (red): execution failed>0 OR pytest failed/error>0
             # - warn (yellow): no items at all OR not 100% success (execution<100 or pytest has skips)
             # - ok (green): total>0 AND failed==0 AND execution rate==100% AND (pytest present -> all passed)
-            ps = e.get('pytest_summary', {}) or {}
-            p_total = ps.get('total', 0) or 0
-            p_failed = ps.get('failed', 0) or 0
-            p_error = ps.get('error', 0) or 0
-            p_passed = ps.get('passed', 0) or 0
-            meta = e.get('meta', {}) or {}
-            cb_failures = bool(meta.get('callback_failures', False))
-            cb_failed_count = int(meta.get('callback_failed_count', 0) or 0)
+            ps=e.get('pytest_summary', {}) or {}
+            p_total=ps.get('total', 0) or 0
+            p_failed=ps.get('failed', 0) or 0
+            p_error=ps.get('error', 0) or 0
+            p_passed=ps.get('passed', 0) or 0
+            meta=e.get('meta', {}) or {}
+            cb_failures=bool(meta.get('callback_failures', False))
+            cb_failed_count=int(meta.get('callback_failed_count', 0) or 0)
 
-            display_rate = 0.0 if cb_failures else float(rate or 0)
+            display_rate=0.0 if cb_failures else float(rate or 0)
 
             if cb_failures or (failed > 0) or (p_failed > 0) or (p_error > 0):
-                badge_cls = "fail"
+                badge_cls="fail"
             elif (total == 0 and p_total == 0):
-                badge_cls = "warn"
+                badge_cls="warn"
             elif (float(rate) < 100.0) or (p_total > 0 and p_passed < p_total):
-                badge_cls = "warn"
+                badge_cls="warn"
             else:
-                badge_cls = "ok"
-            lines = []
+                badge_cls="ok"
+            lines=[]
             lines.append("<div class='card'>")
             lines.append(f"<div><a href='{Path(e['report_path']).name}' target='_blank'>{e['test_name']}</a>"
-                         f" <span class='badge {badge_cls}'>成功率 {display_rate:.1f}%</span></div>")
-            ps = e.get('pytest_summary', {}) or {}
-            p_total = ps.get('total', 0)
-            p_pass = ps.get('passed', 0)
-            p_fail = ps.get('failed', 0)
-            p_skip = ps.get('skipped', 0)
-            p_err = ps.get('error', 0)
-            p_rate = ps.get('success_rate', 0)
-            py_html = ""
+                         f" <span class='badge {badge_cls}'>成功率 {display_rate: .1f}%</span></div>")
+            ps=e.get('pytest_summary', {}) or {}
+            p_total=ps.get('total', 0)
+            p_pass=ps.get('passed', 0)
+            p_fail=ps.get('failed', 0)
+            p_skip=ps.get('skipped', 0)
+            p_err=ps.get('error', 0)
+            p_rate=ps.get('success_rate', 0)
+            py_html=""
             if p_total:
-                py_html = f" | Pytest: total {p_total} <span class='outp'>pass {p_pass}</span> <span class='outf'>fail {
-                    p_fail}</span> <span class='outs'>skip {p_skip}</span> <span class='oute'>error {p_err}</span> rate {p_rate:.1f}%"
+                py_html=f" | Pytest: total {p_total} <span class='outp'>pass {p_pass}</span> <span class='outf'>fail {
+                    p_fail}</span> <span class='outs'>skip {p_skip}</span> <span class='oute'>error {p_err}</span> rate {p_rate: .1f}%"
             cb_html = f", 回调失败: {cb_failed_count}" if cb_failures else ""
             lines.append(f"<div class='meta'>时间: {e.get('timestamp', '')}, 总进程: {total}, 完成: {
                 completed}, 失败: {failed}, 超时: {timeout}, 强制终止: {killed}{cb_html}{py_html}</div>")
             lines.append("</div>")
             return lines
 
-        def _render_tree(name: str, node: dict, depth: int = 0) -> list[str]:
+        def _render_tree(name: str, node: dict, depth: int=0) -> list[str]:
             lines = []
             open_attr = " open" if depth <= 1 else ""
             lines.append(f"<details{open_attr}><summary>{name}</summary>")
@@ -739,25 +661,26 @@ class ReportGenerator:
             show_rate = (exec_success / exec_total * 100.0) if exec_total > 0 else 0.0
 
         overview_html = (
-            f"<div style=\"padding:16px 20px;\">"
-            f"  <div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;\">"
-            f"    <div style=\"background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px;text-align:center;\">"
-            f"      <div style=\"font-size:20px;font-weight:700;color:#007bff;\">{total_duration_sum:.2f}s</div>"
-            f"      <div style=\"color:#666;margin-top:4px;font-size:12px;\">总执行时间</div>"
-            f"    </div>"
-            f"    <div style=\"background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px;text-align:center;\">"
-            f"      <div style=\"font-size:20px;font-weight:700;color:#28a745;\">{show_passed}</div>"
-            f"      <div style=\"color:#666;margin-top:4px;font-size:12px;\">成功测试用例总数</div>"
-            f"    </div>"
-            f"    <div style=\"background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px;text-align:center;\">"
-            f"      <div style=\"font-size:20px;font-weight:700;color:#dc3545;\">{show_failed}</div>"
-            f"      <div style=\"color:#666;margin-top:4px;font-size:12px;\">失败测试用例总数</div>"
-            f"    </div>"
-            f"    <div style=\"background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px;text-align:center;\">"
-            f"      <div style=\"font-size:20px;font-weight:700;color:#007bff;\">{show_rate:.1f}%</div>"
-            f"      <div style=\"color:#666;margin-top:4px;font-size:12px;\">成功率</div>"
-            f"    </div>"
-            f"  </div>"
+            f"<div style=\"padding:16px 20px
+        \">"
+            f"  <div style=\"display: grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;\">"
+            f"    <div style=\"background: #fafafa;border:1px solid #eee;border-radius:8px;padding:12px;text-align:center;\">"
+            f"      <div style=\"font-size: 20px;font-weight:700;color:#007bff;\">{total_duration_sum:.2f}s</div>"
+            f"      <div style=\"color: #666;margin-top:4px;font-size:12px;\">总执行时间</div>"
+            f" </div>"
+            f"    <div style=\"background: #fafafa;border:1px solid #eee;border-radius:8px;padding:12px;text-align:center;\">"
+            f"      <div style=\"font-size: 20px;font-weight:700;color:#28a745;\">{show_passed}</div>"
+            f"      <div style=\"color: #666;margin-top:4px;font-size:12px;\">成功测试用例总数</div>"
+            f" </div>"
+            f"    <div style=\"background: #fafafa;border:1px solid #eee;border-radius:8px;padding:12px;text-align:center;\">"
+            f"      <div style=\"font-size: 20px;font-weight:700;color:#dc3545;\">{show_failed}</div>"
+            f"      <div style=\"color: #666;margin-top:4px;font-size:12px;\">失败测试用例总数</div>"
+            f" </div>"
+            f"    <div style=\"background: #fafafa;border:1px solid #eee;border-radius:8px;padding:12px;text-align:center;\">"
+            f"      <div style=\"font-size: 20px;font-weight:700;color:#007bff;\">{show_rate:.1f}%</div>"
+            f"      <div style=\"color: #666;margin-top:4px;font-size:12px;\">成功率</div>"
+            f" </div>"
+            f" </div>"
             f"</div>")
 
         # Generate HTML
@@ -825,9 +748,9 @@ class ReportGenerator:
                     dur_val = float(dur)
                 except Exception:
                     dur_val = 0.0
-                dur_str = (f"{dur_val:.3f}s" if dur_val > 0.0 else "N/A")
+                dur_str = (f"{dur_val: .3f}s" if dur_val > 0.0 else "N/A")
                 li_html.append(
-                    f"<li><a href='{href}' target='_blank'>{name}</a>: {node} <span style='color:#721c24'>(" +
+                    f"<li><a href='{href}' target='_blank'>{name}</a>: {node} <span style='color: #721c24'>(" +
                     outc +
                     f")</span> {dur_str}</li>")
             insert_idx = html.index("<ul style='margin:0;padding-left:20px' id='failed-tests-list'></ul>")

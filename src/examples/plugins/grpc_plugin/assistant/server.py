@@ -22,7 +22,7 @@ class ExampleServiceImpl(ExampleServiceServicer):
 def serve(port: int):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     add_ExampleServiceServicer_to_server(ExampleServiceImpl(), server)
-    server.add_insecure_port(f"[::]:{port}")
+    server.add_insecure_port(f"[::]: {port}")
     server.start()
     print(f"Server listening on port {port}")
     server.wait_for_termination()

@@ -511,14 +511,14 @@ class ResourceMonitor:
             ]
             for s in monitor_data.snapshots:
                 lines.append(
-                    f"{s.timestamp.isoformat()},"
-                    f"{s.cpu_percent},"
-                    f"{s.memory_rss / 1024 / 1024:.2f},"
-                    f"{s.memory_vms / 1024 / 1024:.2f},"
-                    f"{s.memory_percent:.2f},"
-                    f"{s.disk_read_bytes / 1024 / 1024:.2f},"
-                    f"{s.disk_write_bytes / 1024 / 1024:.2f},"
-                    f"{s.disk_read_count},"
+                    f"{s.timestamp.isoformat()}, "
+                    f"{s.cpu_percent}, "
+                    f"{s.memory_rss / 1024 / 1024: .2f}, "
+                    f"{s.memory_vms / 1024 / 1024: .2f}, "
+                    f"{s.memory_percent: .2f}, "
+                    f"{s.disk_read_bytes / 1024 / 1024: .2f}, "
+                    f"{s.disk_write_bytes / 1024 / 1024: .2f}, "
+                    f"{s.disk_read_count}, "
                     f"{s.disk_write_count}"
                 )
             return "\n".join(lines)

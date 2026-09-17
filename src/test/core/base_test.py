@@ -174,7 +174,7 @@ class BaseAimRTTest:
             print("\n📈 Test completion statistics:")
             print(f"   Total runs: {self._test_config.execution_count}")
             print(f"   Success runs: {success_count}")
-            print(f"   Success rate: {success_rate:.1f}%")
+            print(f"   Success rate: {success_rate: .1f}%")
 
             return success_count == self._test_config.execution_count
 
@@ -229,7 +229,7 @@ class BaseAimRTTest:
                 # If allowlist is enabled but this callback is not listed by any script, do not register
                 if name not in script_enabled_map and name not in kwargs.get('enabled_callbacks', []):
                     print(f"⏭️ Skip registering callback: {
-                        name} (allowlist enabled, not listed in any script's enabled_callbacks)")
+                        name} (allowlist enabled, listed not in any script's enabled_callbacks)")
                     return None
                 # Inject target script list for filtering during execution
                 kwargs = dict(kwargs or {})
@@ -321,8 +321,8 @@ class BaseAimRTTest:
         print(f"Failed: {summary['failed']}")
         print(f"Timeout: {summary['timeout']}")
         print(f"Killed: {summary['killed']}")
-        print(f"Success rate: {summary['success_rate']:.1f}%")
-        print(f"Total duration: {summary['total_duration_seconds']:.2f}s")
+        print(f"Success rate: {summary['success_rate']: .1f}%")
+        print(f"Total duration: {summary['total_duration_seconds']: .2f}s")
 
         print("\n" + "─" * 80)
         print("Per-process resource usage:")
@@ -333,34 +333,32 @@ class BaseAimRTTest:
             print(f"\n🔹 Script: {script_path}")
             print(f"   Status: {process_data['status']}")
             print(f"   PID: {process_data['pid']}")
-            print(
-                f"   Duration: {
-                    process_data['duration_seconds']:.2f}s" if process_data['duration_seconds'] else "   Duration: N/A")
+            print(f"   Duration: {process_data['duration_seconds']: .2f}s" if process_data['duration_seconds'] else "   Duration: N/A")
 
             if "resource_usage" in process_data:
                 resource = process_data["resource_usage"]
 
                 # CPU usage
                 cpu = resource.get("cpu", {})
-                print(f"   💻 CPU: avg {cpu.get('avg_percent', 0):.1f}%, "
-                      f"max {cpu.get('max_percent', 0):.1f}%, "
-                      f"final {cpu.get('final_percent', 0):.1f}%")
+                print(f"   💻 CPU: avg {cpu.get('avg_percent', 0): .1f}%, "
+                      f"max {cpu.get('max_percent', 0): .1f}%, "
+                      f"final {cpu.get('final_percent', 0): .1f}%")
 
                 # Memory usage
                 memory = resource.get("memory", {})
-                print(f"   🧠 Memory: avg {memory.get('avg_rss_mb', 0):.1f}MB, "
-                      f"max {memory.get('max_rss_mb', 0):.1f}MB, "
-                      f"final {memory.get('final_rss_mb', 0):.1f}MB")
-                print(f"   📊 Memory percent: avg {memory.get('avg_percent', 0):.1f}%, "
-                      f"max {memory.get('max_percent', 0):.1f}%, "
-                      f"final {memory.get('final_percent', 0):.1f}%")
+                print(f"   🧠 Memory: avg {memory.get('avg_rss_mb', 0): .1f}MB, "
+                      f"max {memory.get('max_rss_mb', 0): .1f}MB, "
+                      f"final {memory.get('final_rss_mb', 0): .1f}MB")
+                print(f"   📊 Memory percent: avg {memory.get('avg_percent', 0): .1f}%, "
+                      f"max {memory.get('max_percent', 0): .1f}%, "
+                      f"final {memory.get('final_percent', 0): .1f}%")
 
                 # Disk I/O
                 disk = resource.get("disk", {})
-                print(f"   💾 Disk read: total {disk.get('total_read_mb', 0):.2f}MB, "
-                      f"avg {disk.get('avg_read_mb_per_sec', 0):.2f}MB/s")
-                print(f"   💾 Disk write: total {disk.get('total_write_mb', 0):.2f}MB, "
-                      f"avg {disk.get('avg_write_mb_per_sec', 0):.2f}MB/s")
+                print(f"   💾 Disk read: total {disk.get('total_read_mb', 0): .2f}MB, "
+                      f"avg {disk.get('avg_read_mb_per_sec', 0): .2f}MB/s")
+                print(f"   💾 Disk write: total {disk.get('total_write_mb', 0): .2f}MB, "
+                      f"avg {disk.get('avg_write_mb_per_sec', 0): .2f}MB/s")
                 print(f"   🔢 I/O count: read {disk.get('total_read_count', 0)}, "
                       f"write {disk.get('total_write_count', 0)}")
             else:

@@ -34,13 +34,13 @@ def _close_namespace(lines: list[str], scope: tuple[str, ...]) -> None:
     if scope:
         lines.append("")
     for name in reversed(scope):
-        lines.append(f"}}  // namespace {name}")
+        lines.append(f"}} // namespace {name}")
 
 
 def _method_declaration(operation: Operation, interface: InterfaceDecl, unit: TranslationUnit, style: str) -> list[str]:
     request = _resolve_cpp_type(operation.parameters[0].type_ref, interface.scope, unit)
     response = _resolve_cpp_type(operation.response_type, interface.scope, unit)
-    args = ["      aimrt::rpc::ContextRef ctx_ref,", f"      const {request}& req,", f"      {response}& rsp"]
+    args = ["      aimrt::rpc::ContextRef ctx_ref,", f"      const {request}& req, ", f"      {response}& rsp"]
     if style == "sync":
         return [f"  virtual aimrt::rpc::Status {operation.name}(",
                 *args,
@@ -70,31 +70,35 @@ def _proxy_method_declarations(
     response = _resolve_cpp_type(operation.response_type, interface.scope, unit)
     if style == "sync":
         return [
-            f"  aimrt::rpc::Status {operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp);",
-            f"  aimrt::rpc::Status {operation.name}(const {request}& req, {response}& rsp) {{",
-            f"    return {operation.name}(aimrt::rpc::ContextRef(), req, rsp);",
+            f"  aimrt::rpc::Status {operation.name}(aimrt: : rpc: : ContextRef ctx_ref, const {request}& req, {response}& rsp)
+        ",
+            f"  aimrt: :rpc::Status {operation.name}(const {request}& req, {response}& rsp) {{",
+            f"    return {operation.name}(aimrt: :rpc::ContextRef(), req, rsp);",
             "  }",
         ]
     if style == "async":
         return [
-            f"  void {operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp,",
+            f"  void {operation.name}(aimrt: :rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp,",
             "      std::function<void(aimrt::rpc::Status)>&& callback);",
-            f"  void {operation.name}(const {request}& req, {response}& rsp,",
+            f"  void {operation.name}(const {request}& req, {response}& rsp, ",
             "      std::function<void(aimrt::rpc::Status)>&& callback) {",
-            f"    {operation.name}(aimrt::rpc::ContextRef(), req, rsp, std::move(callback));",
+            f"    {operation.name}(aimrt::rpc::ContextRef(), req, rsp, std::move(callback))
+        ",
             "  }",
         ]
     if style == "future":
         return [
-            f"  std::future<aimrt::rpc::Status> {operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp);",
-            f"  std::future<aimrt::rpc::Status> {operation.name}(const {request}& req, {response}& rsp) {{",
-            f"    return {operation.name}(aimrt::rpc::ContextRef(), req, rsp);",
+            f"  std::future<aimrt::rpc::Status> {operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp)
+        ",
+            f"  std: :future<aimrt::rpc::Status> {operation.name}(const {request}& req, {response}& rsp) {{",
+            f"    return {operation.name}(aimrt: :rpc::ContextRef(), req, rsp);",
             "  }",
         ]
     return [
-        f"  aimrt::co::Task<aimrt::rpc::Status> {operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp);",
-        f"  aimrt::co::Task<aimrt::rpc::Status> {operation.name}(const {request}& req, {response}& rsp) {{",
-        f"    co_return co_await {operation.name}(aimrt::rpc::ContextRef(), req, rsp);",
+        f"  aimrt::co::Task<aimrt::rpc::Status> {operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp)
+    ",
+        f"  aimrt: :co::Task<aimrt::rpc::Status> {operation.name}(const {request}& req, {response}& rsp) {{",
+        f"    co_return co_await {operation.name}(aimrt: :rpc::ContextRef(), req, rsp);",
         "  }",
     ]
 
@@ -110,8 +114,9 @@ def _type_support_specializations(lines: list[str], structs: list[StructDecl]) -
             [
                 "template <>",
                 f"struct DdsTypeSupportTraits<{cpp_type}> {{",
-                f"  using PubSubType = {pubsub_type};",
-                f'  static constexpr std::string_view TypeName() {{ return "{declaration.fqn}"; }}',
+                f"  using PubSubType = {pubsub_type}
+        ",
+                f'  static constexpr std: :string_view TypeName() {{ return "{declaration.fqn}"; }}',
                 "};",
                 "",
             ]
@@ -159,8 +164,9 @@ def generate_header(
             (f"{interface.name}AsyncService", "aimrt::rpc::ServiceBase", "async"),
             (f"{interface.name}CoService", "aimrt::rpc::CoServiceBase", "co"),
         ):
-            lines.extend([f"class {class_name} : public {base} {{", " public:",
-                         f"  {class_name}();", f"  ~{class_name}() override = default;", ""])
+            lines.extend([f"class {class_name}: public {base} {{", " public:",
+                         f"  {class_name}()
+            ", f"  ~{class_name}() override = default;", ""])
             for operation in interface.operations:
                 lines.extend(_method_declaration(operation, interface, unit, style))
                 lines.append("")
@@ -170,9 +176,10 @@ def generate_header(
         lines.extend(
             [
                 f"bool Register{
-                    interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name);",
+                    interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name)
+        ",
                 f"bool Register{
-                    interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref);",
+                    interface.name}ClientFunc(aimrt: :rpc::RpcHandleRef rpc_handle_ref);",
                 "",
             ])
         for suffix, base, style in (
@@ -184,17 +191,18 @@ def generate_header(
             class_name = f"{interface.name}{suffix}"
             lines.extend(
                 [
-                    f"class {class_name} : public {base} {{",
+                    f"class {class_name}: public {base} {{",
                     " public:",
-                    f"  explicit {class_name}(aimrt::rpc::RpcHandleRef rpc_handle_ref);",
-                    f"  {class_name}(aimrt::rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name);",
-                    f"  ~{class_name}() = default;",
+                    f"  explicit {class_name}(aimrt::rpc::RpcHandleRef rpc_handle_ref)
+            ",
+                    f"  {class_name}(aimrt: :rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name);",
+                    f"  ~{class_name}() = default; ",
                     "",
                     "  static bool RegisterClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref) {",
-                    f"    return Register{interface.name}ClientFunc(rpc_handle_ref);",
+                    f"    return Register{interface.name}ClientFunc(rpc_handle_ref); ",
                     "  }",
                     "  static bool RegisterClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name) {",
-                    f"    return Register{interface.name}ClientFunc(rpc_handle_ref, service_name);",
+                    f"    return Register{interface.name}ClientFunc(rpc_handle_ref, service_name); ",
                     "  }",
                     "",
                 ]
@@ -224,7 +232,7 @@ def _service_constructor(lines: list[str], interface: InterfaceDecl, unit: Trans
         'SyncService' if style == 'sync' else 'AsyncService' if style == 'async' else 'CoService'}"
     base = "ServiceBase" if style != "co" else "CoServiceBase"
     key = _key(interface)
-    lines.append(f"{class_name}::{class_name}() : aimrt::rpc::{base}(kRpcType, kServiceName_{key}) {{")
+    lines.append(f"{class_name}: :{class_name}() : aimrt::rpc::{base}(kRpcType, kServiceName_{key}) {{")
     for operation in interface.operations:
         request = _resolve_cpp_type(operation.parameters[0].type_ref, interface.scope, unit)
         response = _resolve_cpp_type(operation.response_type, interface.scope, unit)
@@ -236,7 +244,8 @@ def _service_constructor(lines: list[str], interface: InterfaceDecl, unit: Trans
                 [
                     "        aimrt::rpc::ServiceCallback result_callback(result_callback_ptr);",
                     f"        auto status = {
-                        operation.name}(aimrt::rpc::ContextRef(ctx), *static_cast<const {request}*>(req), *static_cast<{response}*>(rsp));",
+                        operation.name}(aimrt::rpc::ContextRef(ctx), *static_cast<const {request}*>(req), *static_cast<{response}*>(rsp))
+            ",
                     "        result_callback(status.Code());",
                 ])
         elif style == "async":
@@ -244,14 +253,15 @@ def _service_constructor(lines: list[str], interface: InterfaceDecl, unit: Trans
                 [
                     "        auto result_callback = std::make_shared<aimrt::rpc::ServiceCallback>(result_callback_ptr);",
                     f"        {
-                        operation.name}(aimrt::rpc::ContextRef(ctx), *static_cast<const {request}*>(req), *static_cast<{response}*>(rsp),",
+                        operation.name}(aimrt: :rpc::ContextRef(ctx), *static_cast<const {request}*>(req), *static_cast<{response}*>(rsp),",
                     "            [result_callback{std::move(result_callback)}](aimrt::rpc::Status status) { (*result_callback)(status.Code()); });",
                 ])
         else:
             lines.extend(
                 [
                     "        auto handle = std::make_unique<const aimrt::rpc::CoRpcHandle>(",
-                    f"            [this](aimrt::rpc::ContextRef context, const void* request, void* response) {{ return {operation.name}(context, *static_cast<const {request}*>(request), *static_cast<{response}*>(response)); }});",
+                    f"            [this](aimrt::rpc::ContextRef context, const void* request, void* response) {{ return {operation.name}(context, *static_cast<const {request}*>(request), *static_cast<{response}*>(response))
+            }});",
                     "        aimrt::rpc::ServiceCallback result_callback(result_callback_ptr);",
                     "        auto* handle_ptr = handle.get();",
                     "        aimrt::co::StartDetached(aimrt::co::On(aimrt::co::InlineScheduler(), filter_mgr_.InvokeRpc(*handle_ptr, aimrt::rpc::ContextRef(ctx), req, rsp)) |",
@@ -261,8 +271,9 @@ def _service_constructor(lines: list[str], interface: InterfaceDecl, unit: Trans
         lines.extend(
             [
                 "      });",
-                f"  RegisterServiceFunc(\"{operation.name}\", nullptr, aimrt::GetDdsMessageTypeSupport<{request}>(),",
-                f"                      aimrt::GetDdsMessageTypeSupport<{response}>(), std::move(service_callback));",
+                f"  RegisterServiceFunc(\"{operation.name}\", nullptr, aimrt: :GetDdsMessageTypeSupport<{request}>(),",
+                f"                      aimrt::GetDdsMessageTypeSupport<{response}>(), std::move(service_callback))
+        ",
             ]
         )
     lines.extend(["}", ""])
@@ -290,7 +301,8 @@ def generate_source(unit: TranslationUnit, idl_stem: str) -> str:
     for interface in unit.interfaces:
         key = _key(interface)
         service_name = "::".join((*interface.scope, interface.name))
-        lines.append(f"static constexpr std::string_view kServiceName_{key} = \"{service_name}\";")
+        lines.append(f"static constexpr std::string_view kServiceName_{key} = \"{service_name}\"
+        ")
     lines.append("")
     for interface in unit.interfaces:
         _open_namespace(lines, interface.scope)
@@ -299,7 +311,7 @@ def generate_source(unit: TranslationUnit, idl_stem: str) -> str:
         key = _key(interface)
         lines.append(
             f"bool Register{
-                interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name) {{")
+                interface.name}ClientFunc(aimrt: :rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name) {{")
         lines.append("  bool result = true;")
         for operation in interface.operations:
             request = _resolve_cpp_type(operation.parameters[0].type_ref, interface.scope, unit)
@@ -308,14 +320,16 @@ def generate_source(unit: TranslationUnit, idl_stem: str) -> str:
                 [
                     "  result = rpc_handle_ref.RegisterClientFunc(",
                     f"      kRpcType, service_name, \"{
-                        operation.name}\", nullptr, aimrt::GetDdsMessageTypeSupport<{request}>(),",
-                    f"      aimrt::GetDdsMessageTypeSupport<{response}>()) && result;",
+                        operation.name}\", nullptr, aimrt: :GetDdsMessageTypeSupport<{request}>(),",
+                    f"      aimrt::GetDdsMessageTypeSupport<{response}>()) && result
+            ",
                 ])
         lines.extend(["  return result;",
                       "}",
                       "",
-                      f"bool Register{interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref) {{",
-                      f"  return Register{interface.name}ClientFunc(rpc_handle_ref, kServiceName_{key});",
+                      f"bool Register{interface.name}ClientFunc(aimrt: :rpc::RpcHandleRef rpc_handle_ref) {{",
+                      f"  return Register{interface.name}ClientFunc(rpc_handle_ref, kServiceName_{key})
+        ",
                       "}",
                       ""])
         for suffix, base, style in (
@@ -327,10 +341,10 @@ def generate_source(unit: TranslationUnit, idl_stem: str) -> str:
             class_name = f"{interface.name}{suffix}"
             lines.extend(
                 [
-                    f"{class_name}::{class_name}(aimrt::rpc::RpcHandleRef rpc_handle_ref)",
-                    f"    : aimrt::rpc::{base}(rpc_handle_ref, kRpcType, kServiceName_{key}) {{}}",
-                    f"{class_name}::{class_name}(aimrt::rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name)",
-                    f"    : aimrt::rpc::{base}(rpc_handle_ref, kRpcType, service_name) {{}}",
+                    f"{class_name}: :{class_name}(aimrt::rpc::RpcHandleRef rpc_handle_ref)",
+                    f"    : aimrt: :rpc::{base}(rpc_handle_ref, kRpcType, kServiceName_{key}) {{}}",
+                    f"{class_name}: :{class_name}(aimrt::rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name)",
+                    f"    : aimrt: :rpc::{base}(rpc_handle_ref, kRpcType, service_name) {{}}",
                     "",
                 ]
             )
@@ -340,35 +354,39 @@ def generate_source(unit: TranslationUnit, idl_stem: str) -> str:
                 if style == "sync":
                     lines.extend(
                         [
-                            f"aimrt::rpc::Status {class_name}::{
-                                operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{",
-                            f"  return Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{
-                                operation.name}\"), ctx_ref, req, rsp);",
+                            f"aimrt::rpc::Status {class_name}: :{
+                                operation.name}(aimrt: :rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{",
+                            f"  return Invoke(aimrt: :rpc::GetFullFuncName(rpc_type_, service_name_, \"{
+                                operation.name}\"), ctx_ref, req, rsp)
+                    ",
                             "}"])
                 elif style == "async":
                     lines.extend(
                         [
-                            f"void {class_name}::{
-                                operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp,",
+                            f"void {class_name}: :{
+                                operation.name}(aimrt: :rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp,",
                             "    std::function<void(aimrt::rpc::Status)>&& callback) {",
-                            f"  Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{
-                                operation.name}\"), ctx_ref, req, rsp, std::move(callback));",
+                            f"  Invoke(aimrt: :rpc::GetFullFuncName(rpc_type_, service_name_, \"{
+                                operation.name}\"), ctx_ref, req, rsp, std::move(callback))
+                    ",
                             "}"])
                 elif style == "future":
                     lines.extend(
                         [
-                            f"std::future<aimrt::rpc::Status> {class_name}::{
-                                operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{",
-                            f"  return Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{
-                                operation.name}\"), ctx_ref, req, rsp);",
+                            f"std::future<aimrt::rpc::Status> {class_name}: :{
+                                operation.name}(aimrt: :rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{",
+                            f"  return Invoke(aimrt: :rpc::GetFullFuncName(rpc_type_, service_name_, \"{
+                                operation.name}\"), ctx_ref, req, rsp)
+                    ",
                             "}"])
                 else:
                     lines.extend(
                         [
-                            f"aimrt::co::Task<aimrt::rpc::Status> {class_name}::{
-                                operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{",
-                            f"  co_return co_await Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{
-                                operation.name}\"), ctx_ref, req, rsp);",
+                            f"aimrt::co::Task<aimrt::rpc::Status> {class_name}: :{
+                                operation.name}(aimrt: :rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{",
+                            f"  co_return co_await Invoke(aimrt: :rpc::GetFullFuncName(rpc_type_, service_name_, \"{
+                                operation.name}\"), ctx_ref, req, rsp)
+                    ",
                             "}"])
                 lines.append("")
         if lines[-1] == "":
