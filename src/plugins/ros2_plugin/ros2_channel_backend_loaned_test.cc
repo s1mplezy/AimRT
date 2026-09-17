@@ -9,6 +9,7 @@
 #include <thread>
 
 #include <gtest/gtest.h>
+#include <rclcpp/version.h>
 #include <std_msgs/msg/string.hpp>
 #include <std_msgs/msg/u_int64.hpp>
 
@@ -317,7 +318,11 @@ TEST_F(Ros2ChannelBackendLoanedTest, AdapterDeliversExactLoanPointerAndCopiesFor
       *static_cast<const rosidl_message_type_support_t*>(
           topic_info.msg_type_support_ref.CustomTypeSupportPtr()),
       "loaned_adapter_topic",
+#if RCLCPP_VERSION_MAJOR == 16
+      options.to_rcl_subscription_options<void>(qos),
+#elif RCLCPP_VERSION_MAJOR == 28
       options.to_rcl_subscription_options(qos),
+#endif
       topic_info,
       &ordinary_tool,
       &loaned_tool,
