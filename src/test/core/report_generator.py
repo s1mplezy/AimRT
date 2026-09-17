@@ -485,7 +485,8 @@ class ReportGenerator:
                     <p><strong>Exit code:</strong> {process_info.exit_code}</p>
                     <p><strong>Duration:</strong> {duration:.2f}s</p>
                     <p><strong>Start time:</strong> {process_info.start_time.strftime('%Y-%m-%d %H:%M:%S')}</p>
-                    <p><strong>End time:</strong> {process_info.end_time.strftime('%Y-%m-%d %H:%M:%S') if process_info.end_time else 'N/A'}</p>
+                    <p><strong>End time:</strong> {process_info.end_time.strftime('%Y-%m-%d %H:%M:%S') if process_info.end_time else 'N/A'}
+                                                                                                                                          </p>
 
                     <h4>📈 Resource Usage</h4>
                     {resource_html}
@@ -672,13 +673,11 @@ class ReportGenerator:
             p_rate = ps.get('success_rate', 0)
             py_html = ""
             if p_total:
-                py_html = f" | Pytest: total {p_total} <span class='outp'>pass {p_pass}</span> <span class='outf'>fail {p_fail}</span> <span class='outs'>skip {p_skip}</span> <span class='oute'>error {p_err}</span> rate {p_rate:.1f}%"
+                py_html = f" | Pytest: total {p_total} <span class='outp'>pass {p_pass}</span> <span class='outf'>fail {
+                    p_fail}</span> <span class='outs'>skip {p_skip}</span> <span class='oute'>error {p_err}</span> rate {p_rate:.1f}%"
             cb_html = f", 回调失败: {cb_failed_count}" if cb_failures else ""
-            lines.append(
-                f"<div class='meta'>时间: {
-                    e.get(
-                        'timestamp',
-                        '')}, 总进程: {total}, 完成: {completed}, 失败: {failed}, 超时: {timeout}, 强制终止: {killed}{cb_html}{py_html}</div>")
+            lines.append(f"<div class='meta'>时间: {e.get('timestamp', '')}, 总进程: {total}, 完成: {
+                completed}, 失败: {failed}, 超时: {timeout}, 强制终止: {killed}{cb_html}{py_html}</div>")
             lines.append("</div>")
             return lines
 

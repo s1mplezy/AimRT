@@ -332,18 +332,16 @@ raise SystemExit(23)
 """,
         encoding="utf-8",
     )
-    (atomic_project / "CMakeLists.txt").write_text(
-        f"""cmake_minimum_required(VERSION 3.24)
+    (atomic_project / "CMakeLists.txt").write_text(f"""cmake_minimum_required(VERSION 3.24)
 project(aimrt_dds_atomic_rejection LANGUAGES NONE)
 list(APPEND CMAKE_MODULE_PATH [[{Path(args.module_dir).resolve()}]])
 set(FASTDDSGEN_EXECUTABLE [[{Path(args.fastddsgen).resolve()}]])
 set(AIMRT_DDS_ENABLE_XTYPES {args.xtypes})
-set_property(GLOBAL PROPERTY AIMRT_DDS_RPC_GEN_COMMAND_PROPERTY [[{Path(sys.executable).resolve()};{failing_generator.resolve()}]])
+set_property(GLOBAL PROPERTY AIMRT_DDS_RPC_GEN_COMMAND_PROPERTY [[{
+        Path(sys.executable).resolve()};{failing_generator.resolve()}]])
 include(FastDdsGenCode)
 aimrt_add_dds_idl_codegen(TARGET_NAME rejected_codegen IDL_FILES Rejected.idl)
-""",
-        encoding="utf-8",
-    )
+""", encoding="utf-8", )
     atomic_build = work_dir / "atomic-build"
     run([args.cmake, "-S", str(atomic_project), "-B", str(atomic_build)])
     run_failed(

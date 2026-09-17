@@ -228,8 +228,8 @@ class BaseAimRTTest:
 
                 # If allowlist is enabled but this callback is not listed by any script, do not register
                 if name not in script_enabled_map and name not in kwargs.get('enabled_callbacks', []):
-                    print(
-                        f"⏭️ Skip registering callback: {name} (allowlist enabled, not listed in any script's enabled_callbacks)")
+                    print(f"⏭️ Skip registering callback: {
+                        name} (allowlist enabled, not listed in any script's enabled_callbacks)")
                     return None
                 # Inject target script list for filtering during execution
                 kwargs = dict(kwargs or {})
