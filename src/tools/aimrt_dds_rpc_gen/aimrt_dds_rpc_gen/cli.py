@@ -50,7 +50,10 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--include-dir", action="append", default=[], help="IDL include search directory")
     parser.add_argument("--depfile", help="optional Make-style dependency file")
     parser.add_argument("--print-dependencies", action="store_true", help="print the resolved include graph and exit")
-    parser.add_argument("--root-only", action="store_true", help="generate only the requested IDL node while resolving its complete include graph")
+    parser.add_argument(
+        "--root-only",
+        action="store_true",
+        help="generate only the requested IDL node while resolving its complete include graph")
     return parser
 
 

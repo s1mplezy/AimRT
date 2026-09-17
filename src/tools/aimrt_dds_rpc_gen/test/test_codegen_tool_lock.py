@@ -7,7 +7,8 @@ import shutil
 import subprocess
 
 
-def configure(cmake: str, source: Path, build: Path, generator: str, java: str, path: str | None = None) -> tuple[int, str]:
+def configure(cmake: str, source: Path, build: Path, generator: str,
+              java: str, path: str | None = None) -> tuple[int, str]:
     command = [cmake, "-S", str(source), "-B", str(build), f"-DJAVA={java}"]
     if generator:
         command.append(f"-DGENERATOR={generator}")
@@ -67,7 +68,8 @@ aimrt_validate_dds_codegen_tools(FASTDDSGEN_EXECUTABLE "${{RESOLVED_GENERATOR}}"
     ]
     for name, generator, should_pass, expected in cases:
         path = f"{generator_dir}{os.pathsep}{os.environ['PATH']}" if name == "discovered" else None
-        result, output = configure(args.cmake, source, work / f"build-{name}", generator, str(Path(args.java).resolve()), path)
+        result, output = configure(args.cmake, source, work /
+                                   f"build-{name}", generator, str(Path(args.java).resolve()), path)
         if (result == 0) != should_pass:
             raise AssertionError(f"unexpected configure result for {name}: {result}\n{output}")
         if expected not in output:

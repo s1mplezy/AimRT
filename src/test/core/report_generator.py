@@ -507,10 +507,8 @@ class ReportGenerator:
                     data = escape(str(getattr(r, 'data', {})))
                     warn = escape("; ".join(getattr(r, 'warnings', []) or []))
                     err = escape("; ".join(getattr(r, 'errors', []) or []))
-                    items_html += f"<div class='callback-item'><div class='callback-title {status_cls}'>[{status_cls.upper()}] {msg}</div>" \
-                        f"<div>data: {data}</div>" \
-                        f"<div>warnings: {warn}</div>" \
-                        f"<div>errors: {err}</div></div>"
+                    items_html += f"<div class='callback-item'><div class='callback-title {status_cls}'>[{
+                        status_cls.upper()}] {msg}</div>" f"<div>data: {data}</div>" f"<div>warnings: {warn}</div>" f"<div>errors: {err}</div></div>"
                 callback_cards_html += f"<h3>{cb_name}</h3>" + items_html
 
         # Build pytest summary stat cards for the top summary grid
@@ -677,7 +675,10 @@ class ReportGenerator:
                 py_html = f" | Pytest: total {p_total} <span class='outp'>pass {p_pass}</span> <span class='outf'>fail {p_fail}</span> <span class='outs'>skip {p_skip}</span> <span class='oute'>error {p_err}</span> rate {p_rate:.1f}%"
             cb_html = f", 回调失败: {cb_failed_count}" if cb_failures else ""
             lines.append(
-                f"<div class='meta'>时间: {e.get('timestamp','')}, 总进程: {total}, 完成: {completed}, 失败: {failed}, 超时: {timeout}, 强制终止: {killed}{cb_html}{py_html}</div>")
+                f"<div class='meta'>时间: {
+                    e.get(
+                        'timestamp',
+                        '')}, 总进程: {total}, 完成: {completed}, 失败: {failed}, 超时: {timeout}, 强制终止: {killed}{cb_html}{py_html}</div>")
             lines.append("</div>")
             return lines
 
@@ -769,7 +770,8 @@ class ReportGenerator:
             "<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;padding:20px} .container{max-width:1200px;margin:0 auto;background:#fff;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.1);overflow:hidden} .header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;padding:24px} .header h1{margin:0} .list{padding:20px} .card{border:1px solid #ddd;border-radius:8px;margin:12px 0;padding:12px;background:#fafafa} .meta{color:#666;font-size:12px} .badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:12px;margin-left:8px} .ok{background:#d4edda;color:#155724} .warn{background:#fff3cd;color:#856404} .fail{background:#f8d7da;color:#721c24} .outp{color:#155724;background:#d4edda;padding:2px 6px;border-radius:4px} .outf{color:#721c24;background:#f8d7da;padding:2px 6px;border-radius:4px} .oute{color:#0c5460;background:#d1ecf1;padding:2px 6px;border-radius:4px} .outs{color:#856404;background:#fff3cd;padding:2px 6px;border-radius:4px} details{margin:6px 0;padding:8px 12px;border:1px dashed #ddd;border-radius:6px;background:#fcfcfc} details summary{cursor:pointer;font-weight:600;color:#333} details details{margin-left:18px}</style>",
             "</head><body><div class='container'>",
             "<div class='header'><h1>🗂️ AimRT Test Report Index</h1>",
-            f"<div class='meta'>Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div></div>",
+            f"<div class='meta'>Last updated: {
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div></div>",
             overview_html,
             "<div style='padding:0 20px 12px 20px'>",
             "<h3 style='margin:6px 0'>失败用例汇总</h3>",
@@ -777,8 +779,7 @@ class ReportGenerator:
             "<ul style='margin:0;padding-left:20px' id='failed-tests-list'></ul>",
             "</div>",
             "</div>",
-            "<div class='list'>"
-        ]
+            "<div class='list'>"]
 
         failed_items = []
         for e in entries:

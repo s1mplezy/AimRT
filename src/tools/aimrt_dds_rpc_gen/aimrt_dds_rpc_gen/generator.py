@@ -42,13 +42,30 @@ def _method_declaration(operation: Operation, interface: InterfaceDecl, unit: Tr
     response = _resolve_cpp_type(operation.response_type, interface.scope, unit)
     args = ["      aimrt::rpc::ContextRef ctx_ref,", f"      const {request}& req,", f"      {response}& rsp"]
     if style == "sync":
-        return [f"  virtual aimrt::rpc::Status {operation.name}(", *args, "  ) {", "    return aimrt::rpc::Status(AIMRT_RPC_STATUS_SVR_NOT_IMPLEMENTED);", "  }"]
+        return [f"  virtual aimrt::rpc::Status {operation.name}(",
+                *args,
+                "  ) {",
+                "    return aimrt::rpc::Status(AIMRT_RPC_STATUS_SVR_NOT_IMPLEMENTED);",
+                "  }"]
     if style == "async":
-        return [f"  virtual void {operation.name}(", *args[:-1], args[-1] + ",", "      std::function<void(aimrt::rpc::Status)>&& callback) {", "    callback(aimrt::rpc::Status(AIMRT_RPC_STATUS_SVR_NOT_IMPLEMENTED));", "  }"]
-    return [f"  virtual aimrt::co::Task<aimrt::rpc::Status> {operation.name}(", *args, "  ) {", "    co_return aimrt::rpc::Status(AIMRT_RPC_STATUS_SVR_NOT_IMPLEMENTED);", "  }"]
+        return [f"  virtual void {operation.name}(",
+                *args[:-1],
+                args[-1] + ",",
+                "      std::function<void(aimrt::rpc::Status)>&& callback) {",
+                "    callback(aimrt::rpc::Status(AIMRT_RPC_STATUS_SVR_NOT_IMPLEMENTED));",
+                "  }"]
+    return [f"  virtual aimrt::co::Task<aimrt::rpc::Status> {operation.name}(",
+            *args,
+            "  ) {",
+            "    co_return aimrt::rpc::Status(AIMRT_RPC_STATUS_SVR_NOT_IMPLEMENTED);",
+            "  }"]
 
 
-def _proxy_method_declarations(operation: Operation, interface: InterfaceDecl, unit: TranslationUnit, style: str) -> list[str]:
+def _proxy_method_declarations(
+        operation: Operation,
+        interface: InterfaceDecl,
+        unit: TranslationUnit,
+        style: str) -> list[str]:
     request = _resolve_cpp_type(operation.parameters[0].type_ref, interface.scope, unit)
     response = _resolve_cpp_type(operation.response_type, interface.scope, unit)
     if style == "sync":
@@ -142,7 +159,8 @@ def generate_header(
             (f"{interface.name}AsyncService", "aimrt::rpc::ServiceBase", "async"),
             (f"{interface.name}CoService", "aimrt::rpc::CoServiceBase", "co"),
         ):
-            lines.extend([f"class {class_name} : public {base} {{", " public:", f"  {class_name}();", f"  ~{class_name}() override = default;", ""])
+            lines.extend([f"class {class_name} : public {base} {{", " public:",
+                         f"  {class_name}();", f"  ~{class_name}() override = default;", ""])
             for operation in interface.operations:
                 lines.extend(_method_declaration(operation, interface, unit, style))
                 lines.append("")
@@ -151,11 +169,12 @@ def generate_header(
             lines.extend(["};", ""])
         lines.extend(
             [
-                f"bool Register{interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name);",
-                f"bool Register{interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref);",
+                f"bool Register{
+                    interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name);",
+                f"bool Register{
+                    interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref);",
                 "",
-            ]
-        )
+            ])
         for suffix, base, style in (
             ("SyncProxy", "aimrt::rpc::SyncProxyBase", "sync"),
             ("AsyncProxy", "aimrt::rpc::AsyncProxyBase", "async"),
@@ -200,7 +219,9 @@ def _key(interface: InterfaceDecl) -> str:
 
 
 def _service_constructor(lines: list[str], interface: InterfaceDecl, unit: TranslationUnit, style: str) -> None:
-    class_name = f"{interface.name}{'SyncService' if style == 'sync' else 'AsyncService' if style == 'async' else 'CoService'}"
+    class_name = f"{
+        interface.name}{
+        'SyncService' if style == 'sync' else 'AsyncService' if style == 'async' else 'CoService'}"
     base = "ServiceBase" if style != "co" else "CoServiceBase"
     key = _key(interface)
     lines.append(f"{class_name}::{class_name}() : aimrt::rpc::{base}(kRpcType, kServiceName_{key}) {{")
@@ -208,23 +229,24 @@ def _service_constructor(lines: list[str], interface: InterfaceDecl, unit: Trans
         request = _resolve_cpp_type(operation.parameters[0].type_ref, interface.scope, unit)
         response = _resolve_cpp_type(operation.response_type, interface.scope, unit)
         lines.append("  aimrt::rpc::ServiceFunc service_callback(")
-        lines.append("      [this](const aimrt_rpc_context_base_t* ctx, const void* req, void* rsp, aimrt_function_base_t* result_callback_ptr) {")
+        lines.append(
+            "      [this](const aimrt_rpc_context_base_t* ctx, const void* req, void* rsp, aimrt_function_base_t* result_callback_ptr) {")
         if style == "sync":
             lines.extend(
                 [
                     "        aimrt::rpc::ServiceCallback result_callback(result_callback_ptr);",
-                    f"        auto status = {operation.name}(aimrt::rpc::ContextRef(ctx), *static_cast<const {request}*>(req), *static_cast<{response}*>(rsp));",
+                    f"        auto status = {
+                        operation.name}(aimrt::rpc::ContextRef(ctx), *static_cast<const {request}*>(req), *static_cast<{response}*>(rsp));",
                     "        result_callback(status.Code());",
-                ]
-            )
+                ])
         elif style == "async":
             lines.extend(
                 [
                     "        auto result_callback = std::make_shared<aimrt::rpc::ServiceCallback>(result_callback_ptr);",
-                    f"        {operation.name}(aimrt::rpc::ContextRef(ctx), *static_cast<const {request}*>(req), *static_cast<{response}*>(rsp),",
+                    f"        {
+                        operation.name}(aimrt::rpc::ContextRef(ctx), *static_cast<const {request}*>(req), *static_cast<{response}*>(rsp),",
                     "            [result_callback{std::move(result_callback)}](aimrt::rpc::Status status) { (*result_callback)(status.Code()); });",
-                ]
-            )
+                ])
         else:
             lines.extend(
                 [
@@ -275,7 +297,9 @@ def generate_source(unit: TranslationUnit, idl_stem: str) -> str:
         for style in ("sync", "async", "co"):
             _service_constructor(lines, interface, unit, style)
         key = _key(interface)
-        lines.append(f"bool Register{interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name) {{")
+        lines.append(
+            f"bool Register{
+                interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref, std::string_view service_name) {{")
         lines.append("  bool result = true;")
         for operation in interface.operations:
             request = _resolve_cpp_type(operation.parameters[0].type_ref, interface.scope, unit)
@@ -283,11 +307,17 @@ def generate_source(unit: TranslationUnit, idl_stem: str) -> str:
             lines.extend(
                 [
                     "  result = rpc_handle_ref.RegisterClientFunc(",
-                    f"      kRpcType, service_name, \"{operation.name}\", nullptr, aimrt::GetDdsMessageTypeSupport<{request}>(),",
+                    f"      kRpcType, service_name, \"{
+                        operation.name}\", nullptr, aimrt::GetDdsMessageTypeSupport<{request}>(),",
                     f"      aimrt::GetDdsMessageTypeSupport<{response}>()) && result;",
-                ]
-            )
-        lines.extend(["  return result;", "}", "", f"bool Register{interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref) {{", f"  return Register{interface.name}ClientFunc(rpc_handle_ref, kServiceName_{key});", "}", ""])
+                ])
+        lines.extend(["  return result;",
+                      "}",
+                      "",
+                      f"bool Register{interface.name}ClientFunc(aimrt::rpc::RpcHandleRef rpc_handle_ref) {{",
+                      f"  return Register{interface.name}ClientFunc(rpc_handle_ref, kServiceName_{key});",
+                      "}",
+                      ""])
         for suffix, base, style in (
             ("SyncProxy", "SyncProxyBase", "sync"),
             ("AsyncProxy", "AsyncProxyBase", "async"),
@@ -308,13 +338,38 @@ def generate_source(unit: TranslationUnit, idl_stem: str) -> str:
                 request = _resolve_cpp_type(operation.parameters[0].type_ref, interface.scope, unit)
                 response = _resolve_cpp_type(operation.response_type, interface.scope, unit)
                 if style == "sync":
-                    lines.extend([f"aimrt::rpc::Status {class_name}::{operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{", f"  return Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{operation.name}\"), ctx_ref, req, rsp);", "}"])
+                    lines.extend(
+                        [
+                            f"aimrt::rpc::Status {class_name}::{
+                                operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{",
+                            f"  return Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{
+                                operation.name}\"), ctx_ref, req, rsp);",
+                            "}"])
                 elif style == "async":
-                    lines.extend([f"void {class_name}::{operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp,", "    std::function<void(aimrt::rpc::Status)>&& callback) {", f"  Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{operation.name}\"), ctx_ref, req, rsp, std::move(callback));", "}"])
+                    lines.extend(
+                        [
+                            f"void {class_name}::{
+                                operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp,",
+                            "    std::function<void(aimrt::rpc::Status)>&& callback) {",
+                            f"  Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{
+                                operation.name}\"), ctx_ref, req, rsp, std::move(callback));",
+                            "}"])
                 elif style == "future":
-                    lines.extend([f"std::future<aimrt::rpc::Status> {class_name}::{operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{", f"  return Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{operation.name}\"), ctx_ref, req, rsp);", "}"])
+                    lines.extend(
+                        [
+                            f"std::future<aimrt::rpc::Status> {class_name}::{
+                                operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{",
+                            f"  return Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{
+                                operation.name}\"), ctx_ref, req, rsp);",
+                            "}"])
                 else:
-                    lines.extend([f"aimrt::co::Task<aimrt::rpc::Status> {class_name}::{operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{", f"  co_return co_await Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{operation.name}\"), ctx_ref, req, rsp);", "}"])
+                    lines.extend(
+                        [
+                            f"aimrt::co::Task<aimrt::rpc::Status> {class_name}::{
+                                operation.name}(aimrt::rpc::ContextRef ctx_ref, const {request}& req, {response}& rsp) {{",
+                            f"  co_return co_await Invoke(aimrt::rpc::GetFullFuncName(rpc_type_, service_name_, \"{
+                                operation.name}\"), ctx_ref, req, rsp);",
+                            "}"])
                 lines.append("")
         if lines[-1] == "":
             lines.pop()

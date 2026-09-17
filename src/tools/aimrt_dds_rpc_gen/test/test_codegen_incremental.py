@@ -158,7 +158,8 @@ target_link_libraries(included_graph_consumer PRIVATE
     run([args.cmake, "--build", str(build_dir), "--target", "incremental_codegen", "--parallel", "1"])
 
     generated = build_dir / "generated"
-    alpha_outputs = sorted((generated / "detail/Alpha").glob("Alpha*")) + [generated / "Alpha.h", generated / "Alpha.cc"]
+    alpha_outputs = sorted((generated / "detail/Alpha").glob("Alpha*")) + \
+        [generated / "Alpha.h", generated / "Alpha.cc"]
     beta_outputs = sorted((generated / "detail/Beta").glob("Beta*")) + [generated / "Beta.h", generated / "Beta.cc"]
     if not alpha_outputs or not beta_outputs:
         raise AssertionError("both IDLs must produce generated files")
@@ -354,7 +355,8 @@ aimrt_add_dds_idl_codegen(TARGET_NAME rejected_codegen IDL_FILES Rejected.idl)
         raise AssertionError(f"generator rejection created final output directory: {rejected_output}")
     if list(atomic_build.rglob(".aimrt-codegen-staging")):
         raise AssertionError("generator rejection left a staging directory")
-    partials = list(atomic_build.rglob("*.hpp")) + list(atomic_build.rglob("*.cxx")) + list(atomic_build.rglob("Rejected.h")) + list(atomic_build.rglob("Rejected.cc"))
+    partials = list(atomic_build.rglob("*.hpp")) + list(atomic_build.rglob("*.cxx")) + \
+        list(atomic_build.rglob("Rejected.h")) + list(atomic_build.rglob("Rejected.cc"))
     if partials:
         raise AssertionError(f"generator rejection left half-generated outputs: {partials}")
 

@@ -968,7 +968,8 @@ if __name__ == "__main__":
                     return False
 
                 print(
-                    f"🔪 Force terminate remote process and its child processes: {script_path} (PID: {process_info.pid})")
+                    f"🔪 Force terminate remote process and its child processes: {script_path} (PID: {
+                        process_info.pid})")
                 try:
                     if process_info.remote_monitor_pid_path:
                         mp = conn.run(
@@ -1369,7 +1370,9 @@ if __name__ == "__main__":
                                 if matched and process_info.process and process_info.process.poll() is None:
                                     if self._echo_child_output:
                                         print(
-                                            f"\U0001F6CE\ufe0f Trigger {'global' if matched_global else 'script'}shutdown_patterns, graceful terminate (PTY): {process_info.script_path}")
+                                            f"\U0001F6CE\ufe0f Trigger {
+                                                'global' if matched_global else 'script'}shutdown_patterns, graceful terminate (PTY): {
+                                                process_info.script_path}")
                                     self._on_shutdown_pattern_matched(
                                         process_info, script_config, matched_global=matched_global)
 
@@ -1460,7 +1463,9 @@ if __name__ == "__main__":
 
                 if matched and running():
                     print(
-                        f"🛎️ Trigger remote {'global' if matched_global else 'script'}shutdown_patterns, graceful terminate: {process_info.script_path}")
+                        f"🛎️ Trigger remote {
+                            'global' if matched_global else 'script'}shutdown_patterns, graceful terminate: {
+                            process_info.script_path}")
                     self._on_shutdown_pattern_matched(process_info, script_config, matched_global=matched_global)
             except Exception as e:
                 print(f"❌ Remote shutdown watcher exception: {e}")

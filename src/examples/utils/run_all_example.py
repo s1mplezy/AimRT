@@ -106,12 +106,12 @@ class ExampleRunner:
 {RESET}
 {YELLOW}{BOLD}► Overall Result:{RESET}
 {WHITE}{'Total tests:':┈<{width}}{CYAN}{total_tests}
-{GREEN}{'Successful tests:':┈<{width-4}}{successful_tests}
-{RED}{'Failed tests:':┈<{width-4}}{not_found_tests + exit_failed_tests + forbidden_tests}
-    {YELLOW}{'• Expected Output Not Found:':┈<{width-12}}{not_found_tests}
-    {MAGENTA}{'• Forbidden Output Found:':┈<{width-12}}{forbidden_tests}
-    {RED}{'• Exit String Not Found:':┈<{width-12}}{exit_failed_tests}
-{BLUE}{'Not run tests:':┈<{width-4}}{not_run_tests}
+{GREEN}{'Successful tests:':┈<{width - 4}}{successful_tests}
+{RED}{'Failed tests:':┈<{width - 4}}{not_found_tests + exit_failed_tests + forbidden_tests}
+    {YELLOW}{'• Expected Output Not Found:':┈<{width - 12}}{not_found_tests}
+    {MAGENTA}{'• Forbidden Output Found:':┈<{width - 12}}{forbidden_tests}
+    {RED}{'• Exit String Not Found:':┈<{width - 12}}{exit_failed_tests}
+{BLUE}{'Not run tests:':┈<{width - 4}}{not_run_tests}
 
 {YELLOW}{BOLD}► Detailed Results:{RESET}
 """

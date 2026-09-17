@@ -88,7 +88,7 @@ class BenchmarkRpcClientModule(aimrt_py.ModuleBase):
                 self.executor_vec.append(executor)
 
             aimrt_py.info(self.logger, f"Module config: max_parallel={self.max_parallel}, "
-                                       f"bench_plans={self.bench_plans}")
+                          f"bench_plans={self.bench_plans}")
 
         except Exception as e:
             aimrt_py.error(self.logger, f"Initialize failed: {e}")

@@ -171,14 +171,16 @@ class RejectionMatrixTest(unittest.TestCase):
         self.assertIn("E005", self.diagnostic("interface S { void Call(in Req a); };").code)
 
     def test_interface_inheritance(self) -> None:
-        self.assertIn("E006", self.diagnostic("interface Base { Rsp A(in Req a); }; interface S : Base { Rsp B(in Req b); };").code)
+        self.assertIn("E006", self.diagnostic(
+            "interface Base { Rsp A(in Req a); }; interface S : Base { Rsp B(in Req b); };").code)
 
     def test_overload(self) -> None:
         self.assertIn("E007", self.diagnostic("interface S { Rsp Call(in Req a); Rsp Call(in Req b); };").code)
 
     def test_raises_and_exception(self) -> None:
         self.assertIn("E008", self.diagnostic("interface S { Rsp Call(in Req a) raises (Oops); };").code)
-        self.assertIn("E008", self.diagnostic("exception Oops { long code; }; interface S { Rsp Call(in Req a); };").code)
+        self.assertIn("E008", self.diagnostic(
+            "exception Oops { long code; }; interface S { Rsp Call(in Req a); };").code)
 
     def test_unknown_or_non_struct_types(self) -> None:
         self.assertIn("E009", self.diagnostic("interface S { Missing Call(in Req a); };").code)
@@ -208,7 +210,9 @@ class RejectionMatrixTest(unittest.TestCase):
 
     def test_cli_failure_leaves_no_partial_outputs(self) -> None:
         path = self.root / "invalid.idl"
-        path.write_text("module m { struct Req { long x; }; interface S { void Call(in Req a); }; };\n", encoding="utf-8")
+        path.write_text(
+            "module m { struct Req { long x; }; interface S { void Call(in Req a); }; };\n",
+            encoding="utf-8")
         output = self.root / "out"
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):

@@ -88,7 +88,9 @@ class URLApp:
                 conn.request("POST", parsed_url.path, json_data, headers)
                 response = conn.getresponse()
                 print(
-                    f"Sent POST request to {url} with json_data {json_data}, response: {response.status} {response.reason}")
+                    f"Sent POST request to {url} with json_data {json_data}, response: {
+                        response.status} {
+                        response.reason}")
                 conn.close()
             except Exception as e:
                 print("Error sending request: {}".format(e))

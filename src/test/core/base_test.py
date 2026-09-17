@@ -334,7 +334,8 @@ class BaseAimRTTest:
             print(f"   Status: {process_data['status']}")
             print(f"   PID: {process_data['pid']}")
             print(
-                f"   Duration: {process_data['duration_seconds']:.2f}s" if process_data['duration_seconds'] else "   Duration: N/A")
+                f"   Duration: {
+                    process_data['duration_seconds']:.2f}s" if process_data['duration_seconds'] else "   Duration: N/A")
 
             if "resource_usage" in process_data:
                 resource = process_data["resource_usage"]

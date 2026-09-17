@@ -14,7 +14,8 @@ def main() -> None:
     targets = run([args.cmake, "--build", str(build_dir), "--target", "help"])
     if "aimrt_dds_" in targets:
         raise AssertionError(f"DDS targets exist while the plugin is disabled:\n{targets}")
-    run([args.cmake, "--build", str(build_dir), "--target", "aimrt_interface_aimrt_module_cpp_interface_test", "--parallel", "1"])
+    run([args.cmake, "--build", str(build_dir), "--target",
+        "aimrt_interface_aimrt_module_cpp_interface_test", "--parallel", "1"])
 
 
 if __name__ == "__main__":
