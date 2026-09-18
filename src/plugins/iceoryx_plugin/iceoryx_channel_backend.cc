@@ -537,18 +537,27 @@ aimrt_channel_loan_status_t IceoryxChannelBackend::BorrowNativeMessage(
       route->type_support == nullptr)
     return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
 
-  auto raw_loan = route->publisher->LoanRaw(
-      route->type_support->size, route->type_support->alignment);
-  if (!raw_loan) return AIMRT_CHANNEL_LOAN_STATUS_LOAN_UNAVAILABLE;
-  if (!route->type_support->construct(raw_loan.ptr)) {
-    route->publisher->ReleaseRaw(raw_loan.ptr);
+  try {
+    auto raw_loan = route->publisher->LoanRaw(
+        route->type_support->size, route->type_support->alignment);
+    if (!raw_loan) return AIMRT_CHANNEL_LOAN_STATUS_LOAN_UNAVAILABLE;
+    try {
+      if (!route->type_support->construct(raw_loan.ptr)) {
+        route->publisher->ReleaseRaw(raw_loan.ptr);
+        return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+      }
+    } catch (...) {
+      route->publisher->ReleaseRaw(raw_loan.ptr);
+      return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+    }
+
+    loaned_msg.msg_ptr = raw_loan.ptr;
+    loaned_msg.impl = route;
+    loaned_msg.release = &ReleaseNativeMessage;
+    return AIMRT_CHANNEL_LOAN_STATUS_OK;
+  } catch (...) {
     return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
   }
-
-  loaned_msg.msg_ptr = raw_loan.ptr;
-  loaned_msg.impl = route;
-  loaned_msg.release = &ReleaseNativeMessage;
-  return AIMRT_CHANNEL_LOAN_STATUS_OK;
 }
 
 aimrt_channel_loan_status_t IceoryxChannelBackend::PublishNativeMessage(
@@ -573,7 +582,12 @@ aimrt_channel_loan_status_t IceoryxChannelBackend::ReleaseNativeMessage(
       route->type_support == nullptr || msg_ptr == nullptr)
     return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
 
-  route->type_support->destroy(msg_ptr);
+  try {
+    route->type_support->destroy(msg_ptr);
+  } catch (...) {
+    route->publisher->ReleaseRaw(msg_ptr);
+    return AIMRT_CHANNEL_LOAN_STATUS_BACKEND_ERROR;
+  }
   route->publisher->ReleaseRaw(msg_ptr);
   return AIMRT_CHANNEL_LOAN_STATUS_OK;
 }

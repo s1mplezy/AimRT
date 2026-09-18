@@ -47,6 +47,9 @@ class ChannelRegistry {
 
   bool Subscribe(std::unique_ptr<SubscribeWrapper>&& subscribe_wrapper_ptr);
 
+  bool RegisterLoanedSubscribe(const LoanedSubscribeWrapper& subscribe_wrapper);
+  void UnregisterLoanedSubscribe(const LoanedSubscribeWrapper& subscribe_wrapper);
+
   bool RegisterPublishType(
       std::unique_ptr<PublishTypeWrapper>&& publish_type_wrapper_ptr);
 
@@ -129,6 +132,8 @@ class ChannelRegistry {
 
   std::unordered_map<Key, std::unique_ptr<SubscribeWrapper>, Key::Hash>
       subscribe_wrapper_map_;
+
+  std::unordered_set<Key, Key::Hash> loaned_subscribe_key_set_;
 
   // index map, topic:wrapper
   std::unordered_map<std::string_view, std::vector<SubscribeWrapper*>>

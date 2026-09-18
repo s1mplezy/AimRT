@@ -61,7 +61,7 @@ def GetRos2MessageTypeName(msg_type: Ros2MsgType) -> str:
 
 
 def GetPbMessageTypeName(msg: google._upb._message.MessageMeta) -> str:
-    return f"pb: {msg.DESCRIPTOR.full_name}"
+    return f"pb:{msg.DESCRIPTOR.full_name}"
 
 
 def RegisterPublishType(publisher: aimrt_python_runtime.PublisherRef,

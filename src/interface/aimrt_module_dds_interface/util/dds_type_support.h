@@ -70,11 +70,7 @@ const aimrt_type_support_base_t* GetDdsMessageTypeSupport() {
       },
       .destroy = [](void* object) {
         if (object == nullptr) return;
-        try {
-          std::destroy_at(static_cast<MsgType*>(object));
-        } catch (...) {
-          std::terminate();
-        } }};
+        std::destroy_at(static_cast<MsgType*>(object)); }};
 
   static const aimrt_type_support_base_t kTypeSupport{
       .type_name = [](void*) -> aimrt_string_view_t {

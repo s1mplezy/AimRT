@@ -297,6 +297,32 @@ TEST(DdsExecutorExplicit, PreservesCountsSerializesReadersAndAllowsReaderParalle
   }
 }
 
+TEST(DdsExecutorExplicit, StopAndWaitBlocksUntilActiveDrainReturns) {
+  auto executor = std::make_shared<DdsAsioExecutor>(1);
+  executor->Start();
+  std::promise<void> entered;
+  std::promise<void> release;
+  auto release_future = release.get_future().share();
+  auto state = std::make_shared<DdsReaderDrainState>(
+      executor,
+      [&] {
+        entered.set_value();
+        release_future.wait();
+        return DdsReaderDrainState::DrainResult::kNoData;
+      },
+      [] { return false; });
+  state->Start();
+  state->NotifyData();
+  ASSERT_EQ(entered.get_future().wait_for(5s), std::future_status::ready);
+
+  auto stopping = std::async(std::launch::async, [&] { state->StopAndWait(); });
+  EXPECT_EQ(stopping.wait_for(50ms), std::future_status::timeout);
+  release.set_value();
+  EXPECT_EQ(stopping.wait_for(5s), std::future_status::ready);
+  EXPECT_FALSE(state->AcceptingWork());
+  executor->Shutdown();
+}
+
 TEST(DdsExecutorExplicit, PreservesTheLastWakeupRaceWithoutConcurrentDrain) {
   auto executor = std::make_shared<DdsAsioExecutor>(2);
   executor->Start();

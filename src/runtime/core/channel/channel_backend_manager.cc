@@ -90,13 +90,20 @@ void ChannelBackendManager::Start() {
       std::atomic_exchange(&state_, State::kStart) == State::kInit,
       "Method can only be called when state is 'Init'.");
 
-  for (auto& backend : channel_backend_index_vec_) {
-    AIMRT_TRACE("Start channel backend '{}'.", backend->Name());
-    backend->Start();
+  {
+    std::lock_guard guard(loan_operation_mutex_);
+    loan_operations_open_ = true;
   }
-
-  std::lock_guard guard(loan_operation_mutex_);
-  loan_operations_open_ = true;
+  try {
+    for (auto& backend : channel_backend_index_vec_) {
+      AIMRT_TRACE("Start channel backend '{}'.", backend->Name());
+      backend->Start();
+    }
+  } catch (...) {
+    std::lock_guard guard(loan_operation_mutex_);
+    loan_operations_open_ = false;
+    throw;
+  }
 }
 
 void ChannelBackendManager::Shutdown() {
@@ -124,6 +131,8 @@ void ChannelBackendManager::Shutdown() {
 
   // Backend shutdown releases all references to loaned subscription wrappers.
   // Destroy their module-owned callback objects before module libraries unload.
+  for (const auto& wrapper : loaned_subscribe_wrapper_vec_)
+    channel_registry_ptr_->UnregisterLoanedSubscribe(*wrapper);
   loaned_subscribe_wrapper_vec_.clear();
 }
 
@@ -433,6 +442,8 @@ aimrt_channel_loan_status_t ChannelBackendManager::PrepareLoanedPublisher(
 
   if (state_.load() != State::kStart) [[unlikely]]
     return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
+  auto operation = AcquireLoanOperation();
+  if (!operation) return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
 
   const auto msg_type = util::ToStdStringView(wrapper.msg_type);
   const auto* publish_type_ptr = channel_registry_ptr_->GetPublishTypeWrapperPtr(
@@ -672,6 +683,8 @@ aimrt_channel_loan_status_t ChannelBackendManager::SubscribeLoaned(
       .msg_type_support_ref = msg_type_support_ref};
   loaned_wrapper_ptr->callback =
       [this, callback_ptr](aimrt::channel::ContextRef ctx_ref, const void* msg_ptr) {
+        auto operation = AcquireLoanOperation();
+        if (!operation) return;
         LoanTrackingScope tracking_scope(
             subscriber_outstanding_loans_, subscriber_max_hold_duration_ns_);
         try {
@@ -683,9 +696,15 @@ aimrt_channel_loan_status_t ChannelBackendManager::SubscribeLoaned(
         }
       };
 
+  if (!channel_registry_ptr_->RegisterLoanedSubscribe(*loaned_wrapper_ptr))
+    return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
+
   auto status = backend_itr->second.front()->SubscribeLoaned(*loaned_wrapper_ptr);
-  if (status == AIMRT_CHANNEL_LOAN_STATUS_OK)
+  if (status == AIMRT_CHANNEL_LOAN_STATUS_OK) {
     loaned_subscribe_wrapper_vec_.emplace_back(std::move(loaned_wrapper_ptr));
+  } else {
+    channel_registry_ptr_->UnregisterLoanedSubscribe(*loaned_wrapper_ptr);
+  }
   return status;
 }
 

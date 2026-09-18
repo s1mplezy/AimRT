@@ -489,6 +489,7 @@ TEST_F(ChannelBackendManagerTest, LoanedSubscribeDeliversOriginalScopedPointer) 
                     .msg_type_support = &type_support,
                     .callback = callback.NativeHandle()}),
             AIMRT_CHANNEL_LOAN_STATUS_OK);
+  channel_backend_manager_.Start();
   int value = 7;
   mock_backend_ptr_->DeliverLoaned(&value);
   EXPECT_EQ(observed_ptr, &value);
@@ -496,6 +497,75 @@ TEST_F(ChannelBackendManagerTest, LoanedSubscribeDeliversOriginalScopedPointer) 
   EXPECT_EQ(
       channel_backend_manager_.GetLoanedMessageDiagnostics().outstanding_loans,
       0u);
+  EXPECT_FALSE(mock_backend_ptr_->is_subscribed);
+}
+
+TEST_F(ChannelBackendManagerTest, ShutdownWaitsForLoanedSubscriberCallback) {
+  auto type_support = MakeIntTypeSupport("ros2:test_msgs/msg/Bounded");
+  std::promise<void> entered;
+  std::promise<void> release;
+  auto release_future = release.get_future().share();
+  aimrt::channel::SubscriberLoanedCallback callback(
+      [&](const aimrt_channel_context_base_t*, const void*) {
+        entered.set_value();
+        release_future.wait();
+      });
+  ASSERT_EQ(channel_backend_manager_.SubscribeLoaned(
+                SubscribeLoanedProxyInfoWrapper{
+                    .pkg_path = "pkg",
+                    .module_name = "module",
+                    .topic_name = "topic",
+                    .msg_type_support = &type_support,
+                    .callback = callback.NativeHandle()}),
+            AIMRT_CHANNEL_LOAN_STATUS_OK);
+  channel_backend_manager_.Start();
+
+  int value = 7;
+  auto delivering = std::async(
+      std::launch::async, [&] { mock_backend_ptr_->DeliverLoaned(&value); });
+  ASSERT_EQ(entered.get_future().wait_for(std::chrono::seconds(5)),
+            std::future_status::ready);
+  auto stopping = std::async(
+      std::launch::async, [&] { channel_backend_manager_.Shutdown(); });
+  EXPECT_EQ(stopping.wait_for(std::chrono::milliseconds(50)),
+            std::future_status::timeout);
+  release.set_value();
+  delivering.get();
+  EXPECT_EQ(stopping.wait_for(std::chrono::seconds(5)),
+            std::future_status::ready);
+}
+
+TEST_F(ChannelBackendManagerTest, DuplicateLoanedSubscribeIsRejected) {
+  auto type_support = MakeIntTypeSupport("ros2:test_msgs/msg/Bounded");
+  aimrt::channel::SubscriberLoanedCallback first_callback(
+      [](const aimrt_channel_context_base_t*, const void*) {});
+  ASSERT_EQ(channel_backend_manager_.SubscribeLoaned(
+                SubscribeLoanedProxyInfoWrapper{
+                    .pkg_path = "pkg", .module_name = "module", .topic_name = "topic", .msg_type_support = &type_support, .callback = first_callback.NativeHandle()}),
+            AIMRT_CHANNEL_LOAN_STATUS_OK);
+  aimrt::channel::SubscriberLoanedCallback second_callback(
+      [](const aimrt_channel_context_base_t*, const void*) {});
+  EXPECT_EQ(channel_backend_manager_.SubscribeLoaned(
+                SubscribeLoanedProxyInfoWrapper{
+                    .pkg_path = "pkg", .module_name = "module", .topic_name = "topic", .msg_type_support = &type_support, .callback = second_callback.NativeHandle()}),
+            AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT);
+  EXPECT_EQ(mock_backend_ptr_->loaned_subscribe_count, 1);
+}
+
+TEST_F(ChannelBackendManagerTest, OrdinaryAndLoanedSubscribeShareDuplicateKey) {
+  auto type_support = MakeIntTypeSupport("ros2:test_msgs/msg/Bounded");
+  aimrt::channel::SubscriberLoanedCallback loaned_callback(
+      [](const aimrt_channel_context_base_t*, const void*) {});
+  ASSERT_EQ(channel_backend_manager_.SubscribeLoaned(
+                SubscribeLoanedProxyInfoWrapper{
+                    .pkg_path = "pkg", .module_name = "module", .topic_name = "topic", .msg_type_support = &type_support, .callback = loaned_callback.NativeHandle()}),
+            AIMRT_CHANNEL_LOAN_STATUS_OK);
+  aimrt::channel::SubscriberCallback ordinary_callback(
+      [](const aimrt_channel_context_base_t*, const void*,
+         aimrt_function_base_t*) {});
+  EXPECT_FALSE(channel_backend_manager_.Subscribe(
+      SubscribeProxyInfoWrapper{
+          .pkg_path = "pkg", .module_name = "module", .topic_name = "topic", .msg_type_support = &type_support, .callback = ordinary_callback.NativeHandle()}));
   EXPECT_FALSE(mock_backend_ptr_->is_subscribed);
 }
 

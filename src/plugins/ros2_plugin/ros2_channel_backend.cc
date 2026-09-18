@@ -140,6 +140,10 @@ void Ros2ChannelBackend::Start() {
       std::atomic_exchange(&state_, State::kStart) == State::kInit,
       "Method can only be called when state is 'Init'.");
 
+  for (auto& [_, wrapper] : ros2_publish_type_wrapper_map_) {
+    std::lock_guard guard(wrapper.loan_operation_mutex);
+    wrapper.accepting_loan_operations = true;
+  }
   for (auto& itr : ros2_subscribe_wrapper_map_) {
     static_cast<Ros2AdapterSubscription*>(itr.second.ros_sub_handle_ptr.get())->Start();
   }
@@ -151,6 +155,7 @@ void Ros2ChannelBackend::Shutdown() {
 
   for (auto& itr : ros2_publish_type_wrapper_map_) {
     std::lock_guard guard(itr.second.loan_operation_mutex);
+    itr.second.accepting_loan_operations = false;
     rcl_publisher_t& publisher = *(itr.second.publisher_ptr);
     rcl_ret_t ret = rcl_publisher_fini(
         &publisher,
@@ -599,7 +604,11 @@ aimrt_channel_loan_status_t Ros2ChannelBackend::PrepareLoanedPublisher(
     if (find_itr->second.use_serialized)
       return AIMRT_CHANNEL_LOAN_STATUS_INCOMPATIBLE_BACKEND_CONFIG;
 
-    auto& publisher = *find_itr->second.publisher_ptr;
+    auto& wrapper = find_itr->second;
+    std::lock_guard guard(wrapper.loan_operation_mutex);
+    if (!wrapper.accepting_loan_operations)
+      return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
+    auto& publisher = *wrapper.publisher_ptr;
     if (!rcl_publisher_can_loan_messages(&publisher))
       return AIMRT_CHANNEL_LOAN_STATUS_RUNTIME_CANNOT_LOAN;
 
@@ -610,6 +619,8 @@ aimrt_channel_loan_status_t Ros2ChannelBackend::PrepareLoanedPublisher(
       loaned_msg = {};
       auto& wrapper = *static_cast<RosPubWrapper*>(impl);
       std::lock_guard guard(wrapper.loan_operation_mutex);
+      if (!wrapper.accepting_loan_operations)
+        return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
       void* msg_ptr = nullptr;
       const auto ret = rcl_borrow_loaned_message(
           wrapper.publisher_ptr.get(), wrapper.type_support_ptr, &msg_ptr);
@@ -629,6 +640,8 @@ aimrt_channel_loan_status_t Ros2ChannelBackend::PrepareLoanedPublisher(
               return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
             auto& wrapper = *static_cast<RosPubWrapper*>(impl);
             std::lock_guard guard(wrapper.loan_operation_mutex);
+            if (!wrapper.accepting_loan_operations)
+              return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
             const auto ret = rcl_return_loaned_message_from_publisher(
                 wrapper.publisher_ptr.get(), msg_ptr);
             if (ret != RCL_RET_OK && rcl_error_is_set()) rcl_reset_error();
@@ -642,6 +655,9 @@ aimrt_channel_loan_status_t Ros2ChannelBackend::PrepareLoanedPublisher(
                                    aimrt::channel::ContextRef,
                                    aimrt_channel_loaned_message_base_t& loaned_msg) noexcept {
       auto& wrapper = *static_cast<RosPubWrapper*>(impl);
+      std::lock_guard guard(wrapper.loan_operation_mutex);
+      if (!wrapper.accepting_loan_operations)
+        return AIMRT_CHANNEL_LOAN_STATUS_INVALID_STATE;
       if (loaned_msg.msg_ptr == nullptr || loaned_msg.impl != &wrapper)
         return AIMRT_CHANNEL_LOAN_STATUS_INVALID_ARGUMENT;
       const auto ret = rcl_publish_loaned_message(

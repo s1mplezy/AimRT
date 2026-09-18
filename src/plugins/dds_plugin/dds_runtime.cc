@@ -441,6 +441,18 @@ DdsReaderDrainState::DdsReaderDrainState(std::weak_ptr<DdsAsioExecutor> executor
                            : [] { return DrainResult::kNoData; }),
       has_unread_(has_unread ? std::move(has_unread) : [] { return false; }) {}
 
+DdsReaderDrainState::ActiveDrainGuard::ActiveDrainGuard(
+    DdsReaderDrainState& state) noexcept
+    : state_(state) {
+  std::lock_guard lock(state_.active_drain_mutex_);
+  ++state_.active_drains_;
+}
+
+DdsReaderDrainState::ActiveDrainGuard::~ActiveDrainGuard() {
+  std::lock_guard lock(state_.active_drain_mutex_);
+  if (--state_.active_drains_ == 0) state_.active_drain_cv_.notify_all();
+}
+
 void DdsReaderDrainState::Start() {
   retry_step_ = 0;
   accepting_work_ = true;
@@ -451,6 +463,12 @@ void DdsReaderDrainState::Stop() noexcept {
   accepting_work_ = false;
   wake_pending_ = false;
   drain_scheduled_ = false;
+}
+
+void DdsReaderDrainState::StopAndWait() noexcept {
+  Stop();
+  std::unique_lock lock(active_drain_mutex_);
+  active_drain_cv_.wait(lock, [this] { return active_drains_ == 0; });
 }
 
 void DdsReaderDrainState::NotifyData() noexcept {
@@ -488,6 +506,7 @@ bool DdsReaderDrainState::ScheduleRetry(DrainResult reason) noexcept {
 }
 
 void DdsReaderDrainState::DrainOnce() noexcept {
+  ActiveDrainGuard active_drain_guard(*this);
 #if defined(BUILD_TESTING)
   drain_execution_count_.fetch_add(1);
 #endif

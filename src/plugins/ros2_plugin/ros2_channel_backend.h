@@ -169,6 +169,7 @@ class Ros2ChannelBackend : public runtime::core::channel::ChannelBackendBase {
     const rosidl_message_type_support_t* type_support_ptr = nullptr;
     bool use_serialized = false;
     std::mutex loan_operation_mutex;
+    bool accepting_loan_operations = false;
   };
 
   // ros2 msg

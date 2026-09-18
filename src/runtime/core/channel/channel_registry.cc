@@ -44,6 +44,13 @@ bool ChannelRegistry::Subscribe(
       .pkg_path = info.pkg_path,
       .module_name = info.module_name};
 
+  if (loaned_subscribe_key_set_.contains(key)) {
+    AIMRT_WARN(
+        "Msg type '{}' is subscribed repeatedly, topic '{}', module '{}', pkg path '{}'",
+        key.msg_type, key.topic_name, key.module_name, key.pkg_path);
+    return false;
+  }
+
   auto emplace_ret = subscribe_wrapper_map_.try_emplace(
       key, std::move(subscribe_wrapper_ptr));
 
@@ -68,6 +75,34 @@ bool ChannelRegistry::Subscribe(
       key.msg_type, key.topic_name, key.module_name, key.pkg_path);
 
   return true;
+}
+
+bool ChannelRegistry::RegisterLoanedSubscribe(
+    const LoanedSubscribeWrapper& subscribe_wrapper) {
+  const auto& info = subscribe_wrapper.info;
+  Key key{
+      .msg_type = info.msg_type,
+      .topic_name = info.topic_name,
+      .pkg_path = info.pkg_path,
+      .module_name = info.module_name};
+  if (subscribe_wrapper_map_.contains(key) ||
+      !loaned_subscribe_key_set_.emplace(key).second) {
+    AIMRT_WARN(
+        "Msg type '{}' is subscribed repeatedly, topic '{}', module '{}', pkg path '{}'",
+        key.msg_type, key.topic_name, key.module_name, key.pkg_path);
+    return false;
+  }
+  return true;
+}
+
+void ChannelRegistry::UnregisterLoanedSubscribe(
+    const LoanedSubscribeWrapper& subscribe_wrapper) {
+  const auto& info = subscribe_wrapper.info;
+  loaned_subscribe_key_set_.erase(
+      Key{.msg_type = info.msg_type,
+          .topic_name = info.topic_name,
+          .pkg_path = info.pkg_path,
+          .module_name = info.module_name});
 }
 
 const SubscribeWrapper* ChannelRegistry::GetSubscribeWrapperPtr(

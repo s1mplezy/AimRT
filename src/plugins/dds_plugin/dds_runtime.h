@@ -190,6 +190,7 @@ class DdsReaderDrainState : public std::enable_shared_from_this<DdsReaderDrainSt
 
   void Start();
   void Stop() noexcept;
+  void StopAndWait() noexcept;
   void NotifyData() noexcept;
   bool DrainScheduled() const noexcept { return drain_scheduled_.load(); }
   bool AcceptingWork() const noexcept { return accepting_work_.load(); }
@@ -208,6 +209,15 @@ class DdsReaderDrainState : public std::enable_shared_from_this<DdsReaderDrainSt
 #endif
 
  private:
+  class ActiveDrainGuard {
+   public:
+    explicit ActiveDrainGuard(DdsReaderDrainState& state) noexcept;
+    ~ActiveDrainGuard();
+
+   private:
+    DdsReaderDrainState& state_;
+  };
+
   bool ScheduleDrain() noexcept;
   bool ScheduleRetry(DrainResult reason) noexcept;
   void DrainOnce() noexcept;
@@ -219,6 +229,9 @@ class DdsReaderDrainState : public std::enable_shared_from_this<DdsReaderDrainSt
   std::atomic_bool drain_scheduled_{false};
   std::atomic_bool wake_pending_{false};
   std::atomic_size_t retry_step_{0};
+  std::mutex active_drain_mutex_;
+  std::condition_variable active_drain_cv_;
+  size_t active_drains_ = 0;
 #if defined(BUILD_TESTING)
   std::atomic_uint64_t drain_execution_count_{0};
   std::atomic_uint64_t retry_schedule_count_{0};

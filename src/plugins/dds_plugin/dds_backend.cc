@@ -574,7 +574,19 @@ void DdsChannelBackend::Start() {
     if (subscription->drain_state) subscription->drain_state->NotifyData();
   }
 }
-void DdsChannelBackend::Shutdown() { running_->store(false); }
+void DdsChannelBackend::Shutdown() {
+  running_->store(false);
+  std::vector<std::shared_ptr<DdsReaderDrainState>> drains;
+  {
+    std::lock_guard lock(mutex_);
+    drains.reserve(subscriptions_.size());
+    for (const auto& [_, subscription] : subscriptions_) {
+      if (subscription->drain_state)
+        drains.emplace_back(subscription->drain_state);
+    }
+  }
+  for (const auto& drain : drains) drain->StopAndWait();
+}
 
 std::list<std::pair<std::string, std::string>> DdsChannelBackend::GenInitializationReport() const noexcept {
   std::scoped_lock lock(state_->mutex, mutex_);
